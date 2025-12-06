@@ -67,7 +67,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
         up='#26a69a', down='#ef5350',
         edge='inherit',
         wick={'up':'#26a69a', 'down':'#ef5350'},
-        volume='in',
+        volume={'up':'#26a69a', 'down':'#ef5350'},  # Volume bars match candle colors
         alpha=0.9
     )
     
@@ -86,9 +86,11 @@ def generate_chart_with_setup(df: pd.DataFrame,
     plot_kwargs = {
         'type': 'candle',
         'style': s,
-        'volume': False,
+        'volume': True,  # Enable volume bars
+        'volume_panel': 1,  # Volume panel position
+        'panel_ratios': (6, 1),  # Main chart:Volume ratio (6:1 keeps chart from shifting up)
         'ylabel': 'Price',
-        'ylabel_lower': '',
+        'ylabel_lower': 'Volume',
         'figsize': (14, 8),
         'returnfig': True,
         'warn_too_much_data': 200
@@ -100,6 +102,15 @@ def generate_chart_with_setup(df: pd.DataFrame,
     fig, axes = mpf.plot(df_plot, **plot_kwargs)
     
     ax = axes[0]
+    
+    # Make volume bars semi-transparent if volume subplot exists
+    if len(axes) > 1:
+        volume_ax = axes[1]
+        # Find volume bars and set transparency
+        for collection in volume_ax.collections:
+            collection.set_alpha(0.6)  # Semi-transparent volume bars
+        for patch in volume_ax.patches:
+            patch.set_alpha(0.6)  # Semi-transparent volume bars
     
     # Get y-axis limits for proper line drawing
     y_min, y_max = ax.get_ylim()
