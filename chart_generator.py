@@ -267,8 +267,8 @@ def generate_chart_with_setup(df: pd.DataFrame,
         arrow_symbol = '▲' if direction == 'long' else '▼'
         direction_text = f'{arrow_symbol} {direction.upper()}'
         
-        # Position at top-left
-        ax.text(0.02, 0.98, direction_text,
+        # Position at top-left (shifted down a bit)
+        ax.text(0.02, 0.95, direction_text,
                transform=ax.transAxes,
                fontsize=16, fontweight='bold',
                color=arrow_color,
