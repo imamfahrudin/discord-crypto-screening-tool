@@ -51,6 +51,43 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
    docker-compose logs -f
    ```
 
+#### Multiple Bot Instances
+
+The project supports running multiple independent bot instances. Each instance uses its own environment file and runs in a separate container.
+
+To run multiple instances:
+
+1. Create additional environment files:
+   ```bash
+   cp .env .env2  # Copy settings for second instance
+   # Edit .env2 with a different bot token
+   ```
+
+2. Uncomment the second service in `docker-compose.yml`:
+   ```yaml
+   # discord-crypto-bot-2:
+   #   build: .
+   #   container_name: discord-crypto-screening-tool-2
+   #   env_file: .env2
+   #   volumes:
+   #     - ./pairs_cache.json:/app/pairs_cache.json
+   #   restart: unless-stopped
+   #   dns:
+   #     - 127.0.0.1
+   ```
+
+3. Start multiple instances:
+   ```bash
+   # Start all instances
+   docker-compose up -d
+
+   # Start specific instances
+   docker-compose up -d discord-crypto-bot discord-crypto-bot-2
+
+   # View logs for specific instance
+   docker-compose logs -f discord-crypto-bot-2
+   ```
+
 ### Option 2: Local Python Deployment
 
 1. **Clone the repository**
@@ -79,15 +116,19 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 
 ## ⚙️ Configuration
 
-### .env File
+### Environment Files
 
-Create a `.env` file in the project root with your configuration:
+Create environment files for each bot instance. The project supports multiple independent bots:
 
 ```bash
+# Copy the example file for your first bot
 cp .env.example .env
+
+# For additional bots, create more env files
+cp .env .env2  # Copy settings for second instance
 ```
 
-Then edit `.env` with your settings:
+Then edit each `.env` file with your settings:
 
 ```
 DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
@@ -96,9 +137,18 @@ OHLC_LIMIT=500
 ```
 
 **Configuration Options:**
-- **DISCORD_TOKEN** (required): Your Discord bot token
+- **DISCORD_TOKEN** (required): Your Discord bot token - Must be unique for each bot instance
 - **BYBIT_WS_URL** (optional): WebSocket URL for Bybit price feeds. Default: `wss://stream.bybit.com/v5/public/linear`
 - **OHLC_LIMIT** (optional): Number of OHLC candles to fetch for analysis. Default: 500
+
+### Multiple Bot Instances
+
+You can run multiple bot instances simultaneously, each with different tokens serving different servers:
+
+- Each bot instance has its own Discord token and can be invited to different servers
+- Bots share the same codebase but run in separate containers
+- Use different container names for easy identification
+- All instances use the same pairs cache file
 
 ## 🔧 How It Works
 
@@ -161,8 +211,11 @@ The bot provides console logging for monitoring:
 
 View logs in real-time:
 ```bash
-# Docker
+# Docker - all instances
 docker-compose logs -f
+
+# Docker - specific instance
+docker-compose logs -f discord-crypto-bot-2
 
 # Local Python
 # Logs appear in the console where you ran python discord_bot.py
@@ -172,7 +225,7 @@ docker-compose logs -f
 
 ### Bot doesn't start
 - **Issue**: Invalid Discord token
-- **Solution**: Verify token in `config.json` and ensure bot has proper permissions
+- **Solution**: Verify token in `.env` file and ensure bot has proper permissions
 
 ### No signals generated
 - **Issue**: API connection failure or invalid pair
@@ -181,6 +234,10 @@ docker-compose logs -f
 ### WebSocket errors
 - **Issue**: Connection issues with Bybit
 - **Solution**: Ensure stable internet and check Bybit API status
+
+### Multiple Bot Issues
+- **Issue**: Bots not responding or conflicting
+- **Solution**: Ensure each bot instance has a unique Discord token and different container names. Check logs for each service individually: `docker-compose logs -f discord-crypto-bot-2`
 
 ## 🤝 Contributing
 

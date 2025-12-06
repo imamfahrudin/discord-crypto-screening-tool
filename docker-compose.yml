@@ -10,3 +10,13 @@ services:
     restart: unless-stopped
     dns:
       - 127.0.0.1
+
+  # discord-crypto-bot-2:
+  #   build: .
+  #   container_name: discord-crypto-screening-tool-2
+  #   env_file: .env2
+  #   volumes:
+  #     - ./pairs_cache.json:/app/pairs_cache.json
+  #   restart: unless-stopped
+  #   dns:
+  #     - 127.0.0.1
