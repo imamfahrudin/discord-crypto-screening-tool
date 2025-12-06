@@ -11,6 +11,7 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 - **Real-time Signal Generation**: Analyzes crypto pairs using RSI and EMA indicators
 - **Discord Integration**: Posts trading signals directly to Discord channels
 - **WebSocket Price Feeds**: Real-time price data from Bybit exchange
+- **Modern Slash Commands**: Interactive commands with dropdown menus for easy use
 - **Customizable Signals**: Configurable RSI and EMA parameters
 - **Docker Support**: Ready-to-deploy with Docker and Docker Compose
 - **Persistent Caching**: Caches trading pairs for faster lookups
@@ -153,7 +154,7 @@ You can run multiple bot instances simultaneously, each with different tokens se
 ## 🔧 How It Works
 
 1. **Initialization**: Bot loads configuration and establishes Discord connection
-2. **Command Handling**: Listens for `!signal` commands in Discord channels
+2. **Command Handling**: Listens for `!signal` commands and `/signal` slash commands in Discord channels
 3. **Data Fetching**: Retrieves real-time price data via WebSocket from Bybit
 4. **Signal Calculation**: Applies RSI and EMA analysis to generate trading signals
 5. **Response**: Posts formatted signals back to the Discord channel
@@ -162,23 +163,39 @@ You can run multiple bot instances simultaneously, each with different tokens se
 ## 📊 Usage
 
 ### Supported Timeframes
-The bot supports the following timeframes: 1m, 5m, 15m, 30m, 1h, 4h, and 1d.
+The bot supports the following timeframes: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M.
 
 ### Commands
-The bot has two command formats:
+The bot supports both traditional prefix commands and modern slash commands:
 
+#### Prefix Commands
 - `!signal {coin} {timeframe}` - General signal check (shows both long and short signals)
 - `!signal {coin} {timeframe} {long/short}` - Specific direction signal check
+
+#### Slash Commands (Recommended)
+The bot now supports Discord's modern slash commands with dropdown helpers:
+```
+/signal          → Generate trading signal (with dropdowns for timeframe & direction)
+/help           → Show available commands and usage information (in Indonesian)
+```
+
+**Benefits of slash commands:**
+- **Dropdown menus** for timeframe and direction selection
+- **Better mobile experience** with touch-friendly interfaces
+- **Parameter validation** prevents common mistakes
+- **Autocomplete** for trading pair symbols
 
 **Examples:**
 - `!signal BTC 1h` - Check for both long and short signals on BTC/USDT 1-hour chart
 - `!signal BTC 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
 - `!signal ETH 4h short` - Check for short signals on ETH/USDT 4-hour chart
 - `!signal HYPE 1d` - Check for signals on HYPE/USDT daily chart
+- `/signal` - Use the interactive slash command with dropdowns
+- `/help` - Show help information in Indonesian
 
 **Supported Parameters:**
 - **COIN**: Cryptocurrency symbol (e.g., BTC, ETH, HYPE). USDT is automatically added.
-- **TIMEFRAME**: 1m, 5m, 15m, 30m, 1h, 4h, 1d
+- **TIMEFRAME**: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
 - **DIRECTION**: long or short (optional)
 
 ## 🛠️ Advanced Usage

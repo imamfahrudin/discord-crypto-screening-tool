@@ -27,6 +27,7 @@ BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+tree = bot.tree
 
 # ============================
 # Events
@@ -44,6 +45,13 @@ async def on_ready():
         print(f"❌ CRITICAL ERROR while fetching pairs: {e}")
 
     start_ws_in_background(url=WS_URL, symbols=["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+
+    # Sync slash commands
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash command(s)")
+    except Exception as e:
+        print(f"Failed to sync slash commands: {e}")
 
 # ============================
 # Helper for embed formatting
@@ -175,6 +183,128 @@ async def signal_command(ctx, symbol: str, timeframe: str, direction: str = None
     except Exception as e:
         tb = traceback.format_exc()
         await ctx.send(f"⚠️ Error generating signal. Cek log terminal: `{e}`")
+        print(tb)
+
+# ============================
+# Slash Commands
+# ============================
+@tree.command(name="help", description="Tampilkan perintah yang tersedia dan informasi penggunaan")
+async def slash_help(interaction: discord.Interaction):
+    """Tampilkan perintah yang tersedia dan informasi penggunaan"""
+    embed = discord.Embed(
+        title="🤖📈 Crypto Signal Bot - Perintah",
+        description="Bot sinyal trading cryptocurrency dengan analisis teknikal RSI dan EMA",
+        color=0x00ff00
+    )
+
+    embed.add_field(
+        name="📊 **Perintah Sinyal Trading**",
+        value=(
+            "**/signal** - Generate sinyal trading (dengan dropdown untuk timeframe & arah)\n"
+            "**!signal {coin} {timeframe}** - Cek sinyal umum (long dan short)\n"
+            "**!signal {coin} {timeframe} {long/short}** - Cek sinyal spesifik arah"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⏰ **Timeframe yang Didukung**",
+        value="1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M",
+        inline=False
+    )
+
+    embed.add_field(
+        name="💡 **Contoh Penggunaan**",
+        value=(
+            "**!signal BTC 1h** - Cek sinyal BTC/USDT 1 jam\n"
+            "**!signal ETH 4h long** - Cek sinyal long ETH/USDT 4 jam\n"
+            "**!signal SOL 1d short** - Cek sinyal short SOL/USDT harian\n"
+            "**/signal** - Gunakan perintah slash interaktif"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="📋 **Parameter yang Didukung**",
+        value=(
+            "**COIN**: Simbol cryptocurrency (BTC, ETH, SOL, dll.)\n"
+            "**TIMEFRAME**: Periode analisis (lihat di atas)\n"
+            "**DIRECTION**: long atau short (opsional)"
+        ),
+        inline=False
+    )
+
+    embed.set_footer(text="Data dari Bybit • Menggunakan indikator RSI & EMA • Bot untuk tujuan edukasi")
+
+    try:
+        await interaction.response.send_message(embed=embed)
+    except Exception as e:
+        print(f"Help command failed: {e}")
+        # Fallback: send directly to channel
+        await interaction.channel.send(embed=embed)
+
+@tree.command(name="signal", description="Generate crypto trading signal")
+@discord.app_commands.describe(
+    symbol="Trading pair symbol (e.g., BTCUSDT)",
+    timeframe="Timeframe for the signal",
+    direction="Optional direction: long or short"
+)
+@discord.app_commands.choices(timeframe=[
+    discord.app_commands.Choice(name="1m", value="1m"),
+    discord.app_commands.Choice(name="3m", value="3m"),
+    discord.app_commands.Choice(name="5m", value="5m"),
+    discord.app_commands.Choice(name="15m", value="15m"),
+    discord.app_commands.Choice(name="30m", value="30m"),
+    discord.app_commands.Choice(name="1h", value="1h"),
+    discord.app_commands.Choice(name="2h", value="2h"),
+    discord.app_commands.Choice(name="4h", value="4h"),
+    discord.app_commands.Choice(name="6h", value="6h"),
+    discord.app_commands.Choice(name="1d", value="1d"),
+    discord.app_commands.Choice(name="1w", value="1w"),
+    discord.app_commands.Choice(name="1M", value="1M")
+])
+@discord.app_commands.choices(direction=[
+    discord.app_commands.Choice(name="Long", value="long"),
+    discord.app_commands.Choice(name="Short", value="short")
+])
+async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str = None):
+    await interaction.response.defer()
+
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+    if timeframe.lower() not in [t.lower() for t in valid_tfs]:
+        await interaction.followup.send(f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
+        return
+
+    forced = None
+    if direction:
+        dir_norm = direction.strip().lower()
+        if dir_norm not in ('long','short'):
+            await interaction.followup.send("⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
+            return
+        forced = dir_norm
+
+    def run_blocking_calls():
+        symbol_norm = normalize_symbol(symbol)
+        if symbol_norm not in get_all_pairs():
+            get_all_pairs(force_refresh=True)
+        if symbol_norm not in get_all_pairs():
+            return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
+        # pass forced_direction to generate_trade_plan
+        return generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=forced)
+
+    try:
+        plan_string = await bot.loop.run_in_executor(None, run_blocking_calls)
+        if isinstance(plan_string, str) and plan_string.startswith("❌ Pair"):
+            await interaction.followup.send(plan_string)
+            return
+
+        embed = create_signal_embed(plan_string, normalize_symbol(symbol), timeframe)
+        await interaction.followup.send(embed=embed)
+    except ValueError as e:
+        await interaction.followup.send(f"⚠️ Error in input/data: `{e}`")
+    except Exception as e:
+        tb = traceback.format_exc()
+        await interaction.followup.send(f"⚠️ Error generating signal. Cek log terminal: `{e}`")
         print(tb)
 
 # ============================
