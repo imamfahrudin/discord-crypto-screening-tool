@@ -96,7 +96,7 @@ Create a `.env` file for additional configuration:
 DISCORD_TOKEN=your_discord_bot_token
 ```
 
-
+## 🔧 How It Works
 
 1. **Initialization**: Bot loads configuration and establishes Discord connection
 2. **Command Handling**: Listens for `!signal` commands in Discord channels
