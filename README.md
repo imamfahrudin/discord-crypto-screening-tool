@@ -80,21 +80,20 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 
 ### config.json
 
-Update the `config.json` file with your Discord bot token:
+Update the `config.json` file with your Discord bot token and optional settings:
 
 ```json
 {
-  "discord_token": "YOUR_DISCORD_BOT_TOKEN_HERE"
+  "discord_token": "YOUR_DISCORD_BOT_TOKEN_HERE",
+  "bybit_ws_url": "wss://stream.bybit.com/v5/public/linear",
+  "ohlc_limit": 500
 }
 ```
 
-### Environment Variables (Optional)
-
-Create a `.env` file for additional configuration:
-
-```env
-DISCORD_TOKEN=your_discord_bot_token
-```
+**Configuration Options:**
+- **discord_token** (required): Your Discord bot token
+- **bybit_ws_url** (optional): WebSocket URL for Bybit price feeds. Default: `wss://stream.bybit.com/v5/public/linear`
+- **ohlc_limit** (optional): Number of OHLC candles to fetch for analysis. Default: 500
 
 ## 🔧 How It Works
 

@@ -7,8 +7,6 @@ services:
     volumes:
       - ./config.json:/app/config.json
       - ./pairs_cache.json:/app/pairs_cache.json
-    env_file:
-      - .env
     restart: unless-stopped
     dns:
       - 127.0.0.1
