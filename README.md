@@ -36,8 +36,9 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 
 2. **Update configuration**
    ```bash
-   # Edit config.json with your Discord bot token
-   nano config.json
+   # Copy the example env file and edit with your Discord bot token
+   cp .env.example .env
+   nano .env
    ```
 
 3. **Build and run with Docker Compose**
@@ -69,7 +70,7 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
    pip install -r requirements.txt
    ```
 
-4. **Update config.json with your Discord bot token**
+4. **Update .env with your Discord bot token**
 
 5. **Run the bot**
    ```bash
@@ -78,22 +79,26 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 
 ## ⚙️ Configuration
 
-### config.json
+### .env File
 
-Update the `config.json` file with your Discord bot token and optional settings:
+Create a `.env` file in the project root with your configuration:
 
-```json
-{
-  "discord_token": "YOUR_DISCORD_BOT_TOKEN_HERE",
-  "bybit_ws_url": "wss://stream.bybit.com/v5/public/linear",
-  "ohlc_limit": 500
-}
+```bash
+cp .env.example .env
+```
+
+Then edit `.env` with your settings:
+
+```
+DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
+BYBIT_WS_URL=wss://stream.bybit.com/v5/public/linear
+OHLC_LIMIT=500
 ```
 
 **Configuration Options:**
-- **discord_token** (required): Your Discord bot token
-- **bybit_ws_url** (optional): WebSocket URL for Bybit price feeds. Default: `wss://stream.bybit.com/v5/public/linear`
-- **ohlc_limit** (optional): Number of OHLC candles to fetch for analysis. Default: 500
+- **DISCORD_TOKEN** (required): Your Discord bot token
+- **BYBIT_WS_URL** (optional): WebSocket URL for Bybit price feeds. Default: `wss://stream.bybit.com/v5/public/linear`
+- **OHLC_LIMIT** (optional): Number of OHLC candles to fetch for analysis. Default: 500
 
 ## 🔧 How It Works
 

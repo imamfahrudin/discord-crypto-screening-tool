@@ -13,12 +13,8 @@ from utils import calculate_rr, format_price_dynamic
 # ============================
 # Load config
 # ============================
-cfg_path = os.path.join(os.path.dirname(__file__), "config.json")
-with open(cfg_path, "r") as f:
-    config = json.load(f)
-
-TOKEN = config.get("discord_token") or os.environ.get("DISCORD_TOKEN")
-WS_URL = config.get("bybit_ws_url") or os.environ.get("BYBIT_WS_URL")
+TOKEN = os.environ.get("DISCORD_TOKEN")
+WS_URL = os.environ.get("BYBIT_WS_URL", "wss://stream.bybit.com/v5/public/linear")
 
 # ============================
 # Discord Setup

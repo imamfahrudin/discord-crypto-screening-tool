@@ -4,8 +4,8 @@ services:
   discord-crypto-bot:
     build: .
     container_name: discord-crypto-screening-tool
+    env_file: .env
     volumes:
-      - ./config.json:/app/config.json
       - ./pairs_cache.json:/app/pairs_cache.json
     restart: unless-stopped
     dns:
