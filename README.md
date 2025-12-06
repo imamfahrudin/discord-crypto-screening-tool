@@ -112,16 +112,17 @@ The bot supports the following timeframes: 1m, 5m, 15m, 30m, 1h, 4h, and 1d.
 ### Commands
 The bot has two command formats:
 
-- `!signal {pairs} {timeframe}` - General signal check (shows both long and short signals)
-- `!signal {pairs} {timeframe} {long/short}` - Specific direction signal check
+- `!signal {coin} {timeframe}` - General signal check (shows both long and short signals)
+- `!signal {coin} {timeframe} {long/short}` - Specific direction signal check
 
 **Examples:**
-- `!signal BTCUSDT 1h` - Check for both long and short signals on BTC/USDT 1-hour chart
-- `!signal BTCUSDT 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
-- `!signal ETHUSDT 4h short` - Check for short signals on ETH/USDT 4-hour chart
+- `!signal BTC 1h` - Check for both long and short signals on BTC/USDT 1-hour chart
+- `!signal BTC 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
+- `!signal ETH 4h short` - Check for short signals on ETH/USDT 4-hour chart
+- `!signal HYPE 1d` - Check for signals on HYPE/USDT daily chart
 
 **Supported Parameters:**
-- **PAIR**: Trading pair (e.g., BTCUSDT, ETHUSDT)
+- **COIN**: Cryptocurrency symbol (e.g., BTC, ETH, HYPE). USDT is automatically added.
 - **TIMEFRAME**: 1m, 5m, 15m, 30m, 1h, 4h, 1d
 - **DIRECTION**: long or short (optional)
 
