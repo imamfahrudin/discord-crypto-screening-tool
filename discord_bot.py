@@ -10,6 +10,7 @@ from signal_logic import generate_trade_plan
 from bybit_data import normalize_symbol, get_all_pairs
 from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
+from chart_generator import generate_chart_with_setup, generate_neutral_chart
 
 load_dotenv()
 
@@ -60,6 +61,44 @@ def safe_float(v):
     try:
         return float(v)
     except Exception:
+        return None
+
+def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
+    """Generate chart from trade plan data dict"""
+    try:
+        direction = data.get('direction', 'neutral').lower()
+        
+        if direction == 'neutral':
+            chart_buf = generate_neutral_chart(
+                df=data['df'],
+                symbol=symbol,
+                timeframe=timeframe,
+                ema13=data.get('ema13_series'),
+                ema21=data.get('ema21_series'),
+                current_price=data.get('current_price')
+            )
+        else:
+            chart_buf = generate_chart_with_setup(
+                df=data['df'],
+                symbol=symbol,
+                timeframe=timeframe,
+                direction=direction,
+                entry_price=data.get('entry'),
+                stop_loss=data.get('stop_loss'),
+                tp1=data.get('tp1'),
+                tp2=data.get('tp2'),
+                ema13=data.get('ema13_series'),
+                ema21=data.get('ema21_series'),
+                fvg_zones=data.get('fvg_zones'),
+                ob_high=data.get('ob_high'),
+                ob_low=data.get('ob_low'),
+                current_price=data.get('current_price')
+            )
+        
+        return chart_buf
+    except Exception as e:
+        print(f"Chart generation error: {e}")
+        traceback.print_exc()
         return None
 
 # Create embed (insight hidden)
@@ -136,6 +175,70 @@ def create_signal_embed(plan_string: str, symbol: str, timeframe: str):
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     return embed
 
+def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
+    """Create embed from dict data (new format)"""
+    current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    
+    direction = data.get('direction', 'NETRAL').upper()
+    
+    # color & emoji
+    if direction == "LONG":
+        color = 0x00FF88; emoji = "🟢"
+    elif direction == "SHORT":
+        color = 0xFF5555; emoji = "🔴"
+    else:
+        color = 0xFFD700; emoji = "🟡"
+    
+    interval_map = {
+        "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30",
+        "1h":"60","2h":"120","4h":"240","6h":"360",
+        "1d":"1D","1w":"1W","1M":"1M"
+    }
+    interval = interval_map.get(timeframe.lower(), "1D")
+    tv_url = f"https://www.tradingview.com/chart/?symbol={data.get('exchange','BYBIT')}:{symbol}&interval={interval}"
+    
+    # NETRAL
+    if direction == "NETRAL":
+        title = f"{emoji} {symbol} — {timeframe.upper()} NETRAL"
+        description = (
+            f"**Analisis:** Pasar konsolidasi atau kriteria FVG/Momentum tidak terpenuhi.\n"
+            f"🕒 **Timeframe:** `{timeframe.upper()}`\n"
+            f"🧭 **Time:** `{current_time}`\n\n"
+            f"🔗 [📈 Open Chart on TradingView]({tv_url})\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        )
+    else:
+        entry_fmt = format_price_dynamic(data.get('entry'))
+        sl_fmt = format_price_dynamic(data.get('stop_loss'))
+        tp1_fmt = format_price_dynamic(data.get('tp1'))
+        tp2_fmt = format_price_dynamic(data.get('tp2'))
+        rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
+        confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
+        
+        title = f"{BOT_TITLE_PREFIX} {direction} {symbol}"
+        description = (
+            f"📊 **PAIR:** `{symbol}`\n"
+            f"🕒 **TIMEFRAME:** `{timeframe.upper()}`\n"
+            f"🧭 **Time:** `{current_time}`\n\n"
+            f"📈 **ENTRY:** `{entry_fmt}`\n"
+            f"🛑 **STOP LOSS:** `{sl_fmt}`\n"
+            f"🎯 **TAKE PROFIT (Target Likuiditas):**\n"
+            f"> TP Awal (1.5R) → `{tp1_fmt}`\n"
+            f"**🏆 TP Final →** `{tp2_fmt}` **({rr_fmt})**\n\n"
+            f"💡 **CONFIDENCE:** {confidence}\n\n"
+            f"🔗 [📈 Open Chart on TradingView]({tv_url})\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        )
+    
+    embed = discord.Embed(title=title, description=description, color=color)
+    last_price_fmt = format_price_dynamic(data.get('current_price'))
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
+    
+    # Set chart as thumbnail (will be attached separately)
+    embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
+    
+    return embed
+
 # ============================
 # Commands
 # ============================
@@ -167,17 +270,30 @@ async def signal_command(ctx, symbol: str, timeframe: str, direction: str = None
             get_all_pairs(force_refresh=True)
         if symbol_norm not in get_all_pairs():
             return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
-        # pass forced_direction to generate_trade_plan
-        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced)
+        # Get dict data for chart generation
+        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True)
 
     try:
-        plan_string = await bot.loop.run_in_executor(None, run_blocking_calls)
-        if isinstance(plan_string, str) and plan_string.startswith("❌ Pair"):
-            await ctx.send(plan_string)
+        result = await bot.loop.run_in_executor(None, run_blocking_calls)
+        if isinstance(result, str) and result.startswith("❌ Pair"):
+            await ctx.send(result)
             return
 
-        embed = create_signal_embed(plan_string, normalize_symbol(symbol), timeframe)
-        await ctx.send(embed=embed)
+        symbol_norm = normalize_symbol(symbol)
+        
+        # Generate chart
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
+        
+        # Create embed
+        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
+        
+        # Send with chart attachment
+        if chart_buf:
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
+            await ctx.send(embed=embed, file=file)
+        else:
+            await ctx.send(embed=embed)
+            
     except ValueError as e:
         await ctx.send(f"⚠️ Error in input/data: `{e}`")
     except Exception as e:
@@ -286,17 +402,30 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
             get_all_pairs(force_refresh=True)
         if symbol_norm not in get_all_pairs():
             return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
-        # pass forced_direction to generate_trade_plan
-        return generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=forced)
+        # Get dict data for chart generation
+        return generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=forced, return_dict=True)
 
     try:
-        plan_string = await bot.loop.run_in_executor(None, run_blocking_calls)
-        if isinstance(plan_string, str) and plan_string.startswith("❌ Pair"):
-            await interaction.followup.send(plan_string)
+        result = await bot.loop.run_in_executor(None, run_blocking_calls)
+        if isinstance(result, str) and result.startswith("❌ Pair"):
+            await interaction.followup.send(result)
             return
 
-        embed = create_signal_embed(plan_string, normalize_symbol(symbol), timeframe)
-        await interaction.followup.send(embed=embed)
+        symbol_norm = normalize_symbol(symbol)
+        
+        # Generate chart
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
+        
+        # Create embed
+        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
+        
+        # Send with chart attachment
+        if chart_buf:
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
+            await interaction.followup.send(embed=embed, file=file)
+        else:
+            await interaction.followup.send(embed=embed)
+            
     except ValueError as e:
         await interaction.followup.send(f"⚠️ Error in input/data: `{e}`")
     except Exception as e:

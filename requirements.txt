@@ -4,3 +4,6 @@ requests
 ta
 websockets
 python-dotenv
+matplotlib
+mplfinance
+Pillow

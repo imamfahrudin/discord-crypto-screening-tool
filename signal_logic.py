@@ -162,9 +162,10 @@ def calculate_confidence_score(direction,
 # ------------------------------
 VALID_TFS = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
 
-def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forced_direction: str = None):
+def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forced_direction: str = None, return_dict: bool = False):
     """
     forced_direction: None | 'long' | 'short'
+    return_dict: If True, return dict with all data; if False, return formatted string (backward compatible)
     """
     symbol = normalize_symbol(symbol)
     # timeframe validation is expected upstream (discord bot), but keep friendly check
@@ -244,6 +245,21 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
             f"RSI: {rsi_val:.2f} | ATR: {atr:.4f}\n"
             f"EMA Crossover tidak jelas atau RSI terlalu ekstrim. Range/Konsolidasi."
         )
+        
+        if return_dict:
+            return {
+                'direction': 'neutral',
+                'df': df,
+                'ema13_series': df['ema13'],
+                'ema21_series': df['ema21'],
+                'current_price': current_price,
+                'insight': indicators_insight,
+                'exchange': exchange.upper(),
+                'rsi': rsi_val,
+                'macd_line': macd_line,
+                'macd_signal': macd_signal
+            }
+        
         return (
             f"DIRECTION: **NETRAL**\n"
             f"INSIGHT_START\n{indicators_insight}\nINSIGHT_END"
@@ -311,7 +327,35 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
         f"{reason_text}"
     )
 
-    # Final return string (same format as before)
+    # Return dict or string based on parameter
+    if return_dict:
+        return {
+            'direction': direction.upper(),
+            'entry': entry_price,
+            'stop_loss': stop,
+            'tp1': tp1,
+            'tp2': tp2,
+            'rr': rr,
+            'confidence': confidence,
+            'confidence_level': level,
+            'confidence_reasons': reasons,
+            'current_price': current_price,
+            'exchange': exchange.upper(),
+            'df': df,
+            'ema13_series': df['ema13'],
+            'ema21_series': df['ema21'],
+            'fvg_zones': fvgs,
+            'ob_high': ob_high,
+            'ob_low': ob_low,
+            'relevant_fvg': relevant_fvg,
+            'insight': indicators_insight,
+            'rsi': rsi_val,
+            'macd_line': macd_line,
+            'macd_signal': macd_signal,
+            'atr': atr
+        }
+    
+    # Final return string (same format as before - backward compatible)
     return (
         f"DIRECTION: **{direction.upper()}**\n"
         f"ENTRY: {entry_price}\n"
