@@ -5,16 +5,21 @@ import os
 import traceback
 from datetime import datetime
 import re
+from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
 from bybit_data import normalize_symbol, get_all_pairs
 from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
+
+load_dotenv()
 
 # ============================
 # Load config
 # ============================
 TOKEN = os.environ.get("DISCORD_TOKEN")
 WS_URL = os.environ.get("BYBIT_WS_URL", "wss://stream.bybit.com/v5/public/linear")
+BOT_TITLE_PREFIX = os.environ.get('BOT_TITLE_PREFIX', '💎 CRYPTO SIGNAL —')
+BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
 
 # ============================
 # Discord Setup
@@ -102,7 +107,7 @@ def create_signal_embed(plan_string: str, symbol: str, timeframe: str):
         entry_fmt = format_price_dynamic(safe_float(data.get('ENTRY'))) if safe_float(data.get('ENTRY')) is not None else '-'
         sl_fmt = format_price_dynamic(safe_float(data.get('SL'))) if safe_float(data.get('SL')) is not None else '-'
 
-        title = f"💎 INSTING SATORU — {s_upper} {symbol}"
+        title = f"{BOT_TITLE_PREFIX} {s_upper} {symbol}"
         description = (
             f"📊 **PAIR:** `{symbol}`\n"
             f"🕒 **TIMEFRAME:** `{timeframe.upper()}`\n"
@@ -120,7 +125,7 @@ def create_signal_embed(plan_string: str, symbol: str, timeframe: str):
 
     embed = discord.Embed(title=title, description=description, color=color)
     last_price_fmt = format_price_dynamic(safe_float(data.get('LAST_PRICE'))) if safe_float(data.get('LAST_PRICE')) is not None else '-'
-    embed.set_footer(text=f"Insting Satoru • Last Price: {last_price_fmt} | Generated: {current_time}")
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     return embed
 
 # ============================
