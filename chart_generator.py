@@ -215,10 +215,40 @@ def generate_chart_with_setup(df: pd.DataFrame,
     # Draw current price marker
     if current_price:
         ax.axhline(y=current_price, color='#F57C00', linestyle='-', linewidth=1, alpha=0.5)
-        ax.text(x_min + (x_max - x_min) * 0.5, current_price, f'Current: {current_price:.6f}', 
+        # Shift current price label further to the left to avoid overlap
+        ax.text(x_min + (x_max - x_min) * 0.35, current_price, f'Current: {current_price:.6f}', 
                fontsize=9, color='#F57C00', alpha=0.9,
                ha='center', va='bottom',
                bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#F57C00', alpha=0.8))
+    
+    # Add centered labels for trade levels
+    if direction != 'neutral' and entry_price and stop_loss:
+        center_x = x_min + (x_max - x_min) * 0.5
+        
+        # Entry/Limit price label (blue)
+        ax.text(center_x, entry_price, f'Limit: {entry_price:.6f}', 
+               fontsize=10, color='#2962FF', alpha=0.9,
+               ha='center', va='center',
+               bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#2962FF', alpha=0.9))
+        
+        # Stop Loss label (red)
+        ax.text(center_x, stop_loss, f'SL: {stop_loss:.6f}', 
+               fontsize=10, color='#FF5252', alpha=0.9,
+               ha='center', va='center',
+               bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#FF5252', alpha=0.9))
+        
+        # Take Profit labels (green)
+        if tp1:
+            ax.text(center_x, tp1, f'TP1: {tp1:.6f}', 
+                   fontsize=10, color='#00E676', alpha=0.9,
+                   ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#00E676', alpha=0.9))
+        
+        if tp2:
+            ax.text(center_x, tp2, f'TP2: {tp2:.6f}', 
+                   fontsize=10, color='#00C853', alpha=0.9,
+                   ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#00C853', alpha=0.9))
     
     # Add direction arrow/label
     if direction != 'neutral':
