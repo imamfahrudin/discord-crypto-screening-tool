@@ -10,3 +10,5 @@ services:
     env_file:
       - .env
     restart: unless-stopped
+    dns:
+      - 127.0.0.1
