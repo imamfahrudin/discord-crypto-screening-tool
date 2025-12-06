@@ -229,7 +229,7 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "**COIN**: Simbol cryptocurrency (BTC, ETH, SOL, dll.)\n"
             "**TIMEFRAME**: Periode analisis (lihat di atas)\n"
-            "**DIRECTION**: long atau short (opsional)"
+            "**DIRECTION**: Auto (default), Long, atau Short"
         ),
         inline=False
     )
@@ -247,7 +247,7 @@ async def slash_help(interaction: discord.Interaction):
 @discord.app_commands.describe(
     symbol="Trading pair symbol (e.g., BTCUSDT)",
     timeframe="Timeframe for the signal",
-    direction="Optional direction: long or short"
+    direction="Direction: Auto, Long, or Short"
 )
 @discord.app_commands.choices(timeframe=[
     discord.app_commands.Choice(name="1m", value="1m"),
@@ -256,18 +256,15 @@ async def slash_help(interaction: discord.Interaction):
     discord.app_commands.Choice(name="15m", value="15m"),
     discord.app_commands.Choice(name="30m", value="30m"),
     discord.app_commands.Choice(name="1h", value="1h"),
-    discord.app_commands.Choice(name="2h", value="2h"),
     discord.app_commands.Choice(name="4h", value="4h"),
-    discord.app_commands.Choice(name="6h", value="6h"),
-    discord.app_commands.Choice(name="1d", value="1d"),
-    discord.app_commands.Choice(name="1w", value="1w"),
-    discord.app_commands.Choice(name="1M", value="1M")
+    discord.app_commands.Choice(name="1d", value="1d")
 ])
 @discord.app_commands.choices(direction=[
+    discord.app_commands.Choice(name="Auto", value="auto"),
     discord.app_commands.Choice(name="Long", value="long"),
     discord.app_commands.Choice(name="Short", value="short")
 ])
-async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str = None):
+async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str):
     await interaction.response.defer()
 
     valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
@@ -276,10 +273,10 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
         return
 
     forced = None
-    if direction:
+    if direction and direction.lower() != 'auto':
         dir_norm = direction.strip().lower()
         if dir_norm not in ('long','short'):
-            await interaction.followup.send("⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
+            await interaction.followup.send("⚠️ Direction harus 'auto', 'long', atau 'short'.")
             return
         forced = dir_norm
 

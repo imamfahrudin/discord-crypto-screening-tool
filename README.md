@@ -196,7 +196,7 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 **Supported Parameters:**
 - **COIN**: Cryptocurrency symbol (e.g., BTC, ETH, HYPE). USDT is automatically added.
 - **TIMEFRAME**: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
-- **DIRECTION**: long or short (optional)
+- **DIRECTION**: Auto (default), Long, or Short
 
 ## 🛠️ Advanced Usage
 
