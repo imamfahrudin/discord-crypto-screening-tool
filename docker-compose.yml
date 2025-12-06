@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  discord-crypto-bot:
+    build: .
+    container_name: discord-crypto-screening-tool
+    volumes:
+      - ./config.json:/app/config.json
+      - ./pairs_cache.json:/app/pairs_cache.json
+    env_file:
+      - .env
+    restart: unless-stopped
