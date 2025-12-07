@@ -12,9 +12,7 @@ CACHE_EXPIRY = 3600  # 1 hour in seconds
 
 BYBIT_URLS = [
     'https://api.bybit.com/v5/market/instruments-info?category=linear',
-    'https://api.bybit.com/v5/market/instruments-info?category=spot',
-    'https://api.bybitglobal.com/v5/market/instruments-info?category=linear',
-    'https://api.bybitglobal.com/v5/market/instruments-info?category=spot'
+    'https://api.bybitglobal.com/v5/market/instruments-info?category=linear'
 ]
 
 def _load_pairs_from_disk():
