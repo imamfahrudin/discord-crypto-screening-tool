@@ -4,6 +4,8 @@ import time
 import os
 import json
 
+LOG_PREFIX = "[bybit_data]"
+
 _PAIRS_CACHE = None
 CACHE_FILE = os.path.join(os.path.dirname(__file__), 'pairs_cache.json')
 CACHE_EXPIRY = 3600  # 1 hour in seconds
@@ -23,21 +25,27 @@ def _load_pairs_from_disk():
                 if isinstance(data, dict) and 'pairs' in data and 'timestamp' in data:
                     current_time = time.time()
                     if current_time - data['timestamp'] < CACHE_EXPIRY:
+                        print(f"{LOG_PREFIX} 📂 Loaded pairs from disk cache")
                         return data['pairs']
-    except Exception:
-        pass
+        print(f"{LOG_PREFIX} 📂 No valid cache found on disk")
+    except Exception as e:
+        print(f"{LOG_PREFIX} 📂 Error loading cache from disk: {e}")
     return None
 
 def get_all_pairs(force_refresh=False):
     global _PAIRS_CACHE
     if _PAIRS_CACHE is not None and not force_refresh:
+        print(f"{LOG_PREFIX} 💾 Using in-memory pairs cache")
         return _PAIRS_CACHE
     disk = _load_pairs_from_disk()
     if disk and not force_refresh:
         _PAIRS_CACHE = disk
+        print(f"{LOG_PREFIX} 💾 Using disk pairs cache")
         return _PAIRS_CACHE
+    print(f"{LOG_PREFIX} 🌐 Fetching pairs from Bybit API")
     pairs = []
     for url in BYBIT_URLS:
+        print(f"{LOG_PREFIX} 🔗 Trying URL: {url}")
         try:
             resp = requests.get(url, timeout=8)
             data = resp.json()
@@ -52,13 +60,14 @@ def get_all_pairs(force_refresh=False):
                             if sym not in pairs:
                                 pairs.append(sym)
                         else:
-                            print(f"⚠️ Skipping {sym} with status: {status}")  # Debug non-trading pairs
-        except Exception:
+                            print(f"{LOG_PREFIX} ⚠️ Skipping {sym} with status: {status}")  # Debug non-trading pairs
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error fetching from {url}: {e}")
             time.sleep(0.5)
             continue
     if pairs:
         _PAIRS_CACHE = pairs
-        print(f"📊 Fetched {len(pairs)} trading pairs from Bybit API")
+        print(f"{LOG_PREFIX} 📊 Fetched {len(pairs)} trading pairs from Bybit API")
         try:
             cache_data = {
                 'pairs': pairs,
@@ -66,10 +75,12 @@ def get_all_pairs(force_refresh=False):
             }
             with open(CACHE_FILE, 'w') as f:
                 json.dump(cache_data, f)
-        except Exception:
-            pass
+            print(f"{LOG_PREFIX} 💾 Saved pairs to disk cache")
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error saving cache to disk: {e}")
         return _PAIRS_CACHE
     _PAIRS_CACHE = disk or []
+    print(f"{LOG_PREFIX} ⚠️ No pairs fetched, using fallback cache")
     return _PAIRS_CACHE
 
 def normalize_symbol(symbol: str) -> str:
@@ -80,18 +91,21 @@ def normalize_symbol(symbol: str) -> str:
 
 def pair_exists(symbol: str) -> bool:
     symbol = normalize_symbol(symbol)
+    print(f"{LOG_PREFIX} 🔍 Checking if {symbol} exists in cache")
     pairs = get_all_pairs()
     if symbol in pairs:
+        print(f"{LOG_PREFIX} ✅ {symbol} found in cache")
         return True
     # Not found in cache, force refresh from API
-    print(f"🔄 Refreshing pairs cache for {symbol}...")
+    print(f"{LOG_PREFIX} 🔄 Refreshing pairs cache for {symbol}...")
     pairs = get_all_pairs(force_refresh=True)
     found = symbol in pairs
-    print(f"✅ Cache refreshed. {symbol} found: {found}")
+    print(f"{LOG_PREFIX} ✅ Cache refreshed. {symbol} found: {found}")
     return found
 
 def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     symbol = normalize_symbol(symbol)
+    print(f"{LOG_PREFIX} 📈 Fetching OHLC for {symbol} {timeframe}")
     tf_map = {
         '1m': '1',
         '3m': '3',
@@ -109,6 +123,7 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     if not pair_exists(symbol):
         raise ValueError(f"Pair {symbol} not available in Bybit Futures (linear).") 
     for domain in ['api.bybit.com','api.bybitglobal.com']:
+        print(f"{LOG_PREFIX} 🔗 Trying domain: {domain}")
         try:
             url = f"https://{domain}/v5/market/kline?category=linear&symbol={symbol}&interval={interval}&limit={limit}"
             resp = requests.get(url, timeout=8)
@@ -121,21 +136,26 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
                 df = df.iloc[::-1].reset_index(drop=True)
                 try:
                     df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"{LOG_PREFIX} ⚠️ Error converting timestamps: {e}")
+                print(f"{LOG_PREFIX} ✅ Successfully fetched {len(df)} candles for {symbol}")
                 return df
-        except Exception:
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error fetching from {domain}: {e}")
             time.sleep(0.5)
             continue
     raise ValueError(f"No candle data for {symbol} {timeframe}")
 
 def get_last_price_from_rest(symbol: str):
     symbol = normalize_symbol(symbol)
+    print(f"{LOG_PREFIX} 💰 Fetching last price for {symbol}")
     for domain in ['api.bybit.com','api.bybitglobal.com']:
+        print(f"{LOG_PREFIX} 🔗 Trying domain: {domain}")
         try:
             url = f"https://{domain}/v5/market/tickers?category=linear&symbol={symbol}"
             resp = requests.get(url, timeout=5).json()
             if resp.get('retCode') != 0:
+                print(f"{LOG_PREFIX} ⚠️ Non-zero retCode from {domain}: {resp.get('retCode')}")
                 continue
             result = resp.get('result', {}) or {}
             ticker_list = result.get('list', []) or []
@@ -144,8 +164,11 @@ def get_last_price_from_rest(symbol: str):
                 last_price = float(tick.get('lastPrice', tick.get('price', 0) or 0))
                 mark_price = float(tick.get('markPrice', last_price))
                 final = mark_price if abs(mark_price - last_price) < 5 else last_price
+                print(f"{LOG_PREFIX} ✅ Got price: {final} for {symbol}")
                 return float(final)
-        except Exception:
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error fetching from {domain}: {e}")
             time.sleep(0.2)
             continue
+    print(f"{LOG_PREFIX} ❌ Failed to get price for {symbol}")
     return None
