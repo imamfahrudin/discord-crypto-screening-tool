@@ -62,16 +62,17 @@ def calculate_confidence_score(direction,
                                stoch_k, stoch_d,
                                vol_ratio,
                                relevant_fvg, ob_high, ob_low,
-                               entry_price, current_price):
+                               entry_price, current_price,
+                               ema_short=13, ema_long=21):
     score = 0
     reasons = []
 
     # EMA trend strength
     ema_spread_pct = abs(ema13 - ema21) / (current_price if current_price != 0 else 1) * 100
     if direction == 'long' and ema13 > ema21:
-        score += 12; reasons.append("EMA Bullish (13>21)")
+        score += 12; reasons.append(f"EMA Bullish ({ema_short}>{ema_long})")
     elif direction == 'short' and ema13 < ema21:
-        score += 12; reasons.append("EMA Bearish (13<21)")
+        score += 12; reasons.append(f"EMA Bearish ({ema_short}<{ema_long})")
     if ema_spread_pct > 1:
         score += 8; reasons.append("Spread EMA kuat (>%1)")
     elif ema_spread_pct > 0.5:
@@ -162,10 +163,12 @@ def calculate_confidence_score(direction,
 # ------------------------------
 VALID_TFS = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
 
-def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forced_direction: str = None, return_dict: bool = False):
+def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forced_direction: str = None, return_dict: bool = False, ema_short: int = 13, ema_long: int = 21):
     """
     forced_direction: None | 'long' | 'short'
     return_dict: If True, return dict with all data; if False, return formatted string (backward compatible)
+    ema_short: Short EMA period (default 13)
+    ema_long: Long EMA period (default 21)
     """
     symbol = normalize_symbol(symbol)
     # timeframe validation is expected upstream (discord bot), but keep friendly check
@@ -177,8 +180,8 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
         raise ValueError("Failed to fetch sufficient OHLC data (need min 50 candles)")
 
     # Indicators
-    df['ema13'] = ta.trend.EMAIndicator(df['close'], window=13).ema_indicator()
-    df['ema21'] = ta.trend.EMAIndicator(df['close'], window=21).ema_indicator()
+    df['ema13'] = ta.trend.EMAIndicator(df['close'], window=ema_short).ema_indicator()
+    df['ema21'] = ta.trend.EMAIndicator(df['close'], window=ema_long).ema_indicator()
     df['rsi'] = ta.momentum.RSIIndicator(df['close'], window=14).rsi()
     df['atr'] = ta.volatility.AverageTrueRange(df['high'], df['low'], df['close'], window=14).average_true_range()
 
@@ -240,7 +243,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
 
     if direction == 'neutral':
         indicators_insight = (
-            f"EMA13: {format_price_dynamic(ema13)} • EMA21: {format_price_dynamic(ema21)}\n"
+            f"EMA{ema_short}: {format_price_dynamic(ema13)} • EMA{ema_long}: {format_price_dynamic(ema21)}\n"
             f"MACD: {macd_line:.5f} | Signal: {macd_signal:.5f}\n"
             f"RSI: {rsi_val:.2f} | ATR: {atr:.4f}\n"
             f"EMA Crossover tidak jelas atau RSI terlalu ekstrim. Range/Konsolidasi."
@@ -310,7 +313,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     confidence, level, reasons = calculate_confidence_score(
         direction, ema13, ema21, macd_line, macd_signal, rsi_val,
         stoch_k, stoch_d, vol_ratio, relevant_fvg, ob_high, ob_low,
-        entry_price, current_price
+        entry_price, current_price, ema_short, ema_long
     )
 
     # Build insight (kept for internal use but may be hidden in embed)
@@ -318,7 +321,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     reason_text = "\n- ".join([""] + reasons)
 
     indicators_insight = (
-        f"EMA13: {format_price_dynamic(ema13)} • EMA21: {format_price_dynamic(ema21)}\n"
+        f"EMA{ema_short}: {format_price_dynamic(ema13)} • EMA{ema_long}: {format_price_dynamic(ema21)}\n"
         f"MACD: {macd_line:.5f} | Signal: {macd_signal:.5f}\n"
         f"FVG/OB Info: {ob_desc}\n"
         f"STOCH K/D: {format_price_dynamic(stoch_k)}/{format_price_dynamic(stoch_d)} | Vol xEMA20: {format_price_dynamic(vol_ratio) if vol_ratio else '-'}\n"
@@ -342,6 +345,8 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
             'current_price': current_price,
             'exchange': exchange.upper(),
             'df': df,
+            'ema_short': ema_short,
+            'ema_long': ema_long,
             'ema13_series': df['ema13'],
             'ema21_series': df['ema21'],
             'fvg_zones': fvgs,

@@ -19,7 +19,9 @@ def generate_chart_from_data(data, symbol, timeframe):
             timeframe=timeframe,
             ema13=data.get('ema13_series'),
             ema21=data.get('ema21_series'),
-            current_price=data.get('current_price')
+            current_price=data.get('current_price'),
+            ema_short=data.get('ema_short', 13),
+            ema_long=data.get('ema_long', 21)
         )
     else:
         return generate_chart_with_setup(
@@ -36,7 +38,9 @@ def generate_chart_from_data(data, symbol, timeframe):
             fvg_zones=data.get('fvg_zones'),
             ob_high=data.get('ob_high'),
             ob_low=data.get('ob_low'),
-            current_price=data.get('current_price')
+            current_price=data.get('current_price'),
+            ema_short=data.get('ema_short', 13),
+            ema_long=data.get('ema_long', 21)
         )
 
 def test_chart_generation(symbol="BTC", timeframe="1h", forced_direction=None):

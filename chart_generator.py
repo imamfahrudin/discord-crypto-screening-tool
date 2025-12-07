@@ -18,7 +18,9 @@ def generate_chart_with_setup(df: pd.DataFrame,
                                fvg_zones: list = None,
                                ob_high: float = None,
                                ob_low: float = None,
-                               current_price: float = None) -> BytesIO:
+                               current_price: float = None,
+                               ema_short: int = 13,
+                               ema_long: int = 21) -> BytesIO:
     """
     Generate a candlestick chart with position setup visualization.
     
@@ -31,12 +33,14 @@ def generate_chart_with_setup(df: pd.DataFrame,
         stop_loss: Stop loss level
         tp1: First take profit target
         tp2: Second take profit target
-        ema13: EMA 13 series (optional)
-        ema21: EMA 21 series (optional)
+        ema13: EMA short series (optional)
+        ema21: EMA long series (optional)
         fvg_zones: List of Fair Value Gap zones
         ob_high: Order block high
         ob_low: Order block low
         current_price: Current market price
+        ema_short: Short EMA period (default 13)
+        ema_long: Long EMA period (default 21)
         
     Returns:
         BytesIO object containing the chart image
@@ -56,11 +60,11 @@ def generate_chart_with_setup(df: pd.DataFrame,
     
     if ema13 is not None:
         ema13_plot = ema13.tail(100)
-        add_plots.append(mpf.make_addplot(ema13_plot, color='#00BFFF', width=2, label='EMA 13'))
+        add_plots.append(mpf.make_addplot(ema13_plot, color='#00BFFF', width=2, label=f'EMA {ema_short}'))
     
     if ema21 is not None:
         ema21_plot = ema21.tail(100)
-        add_plots.append(mpf.make_addplot(ema21_plot, color='#FF6B9D', width=2, label='EMA 21'))
+        add_plots.append(mpf.make_addplot(ema21_plot, color='#FF6B9D', width=2, label=f'EMA {ema_long}'))
     
     # Custom style with modern light theme
     mc = mpf.make_marketcolors(
@@ -317,7 +321,9 @@ def generate_neutral_chart(df: pd.DataFrame,
                            timeframe: str,
                            ema13: pd.Series = None,
                            ema21: pd.Series = None,
-                           current_price: float = None) -> BytesIO:
+                           current_price: float = None,
+                           ema_short: int = 13,
+                           ema_long: int = 21) -> BytesIO:
     """
     Generate a simple chart for neutral signals without trade setup.
     """
@@ -328,5 +334,7 @@ def generate_neutral_chart(df: pd.DataFrame,
         direction='neutral',
         ema13=ema13,
         ema21=ema21,
-        current_price=current_price
+        current_price=current_price,
+        ema_short=ema_short,
+        ema_long=ema_long
     )

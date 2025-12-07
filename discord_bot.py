@@ -66,23 +66,82 @@ async def on_message(message):
         if not content:
             return  # Empty after "$", ignore
 
-        # Parse the content: symbol timeframe [direction]
+        # Parse the content: symbol [timeframe] [direction] [ema_short] [ema_long] (flexible order)
         parts = content.split()
         if len(parts) < 2:
-            await send_error(message, "⚠️ Format: `$SYMBOL TIMEFRAME [long/short]`\nContoh: `$BTC 1h` atau `$ETH 4h long`")
+            await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nCoin harus di depan, sisanya bebas urutan.\nContoh: `$BTC 1h` atau `$ETH 4h long ema20 ema50` atau `$SOL short ema9 ema21 1d`")
             return
 
         symbol = parts[0].upper()
-        timeframe = parts[1].lower()
-        direction = parts[2].lower() if len(parts) > 2 else None
+        remaining_parts = parts[1:]
+        
+        # Flexible parsing
+        timeframe = None
+        direction = None
+        emas = []
+        valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+        
+        for part in remaining_parts:
+            part_lower = part.lower()
+            
+            # Check if it's a timeframe
+            if part_lower in valid_tfs:
+                if timeframe is not None:
+                    await send_error(message, "⚠️ Timeframe hanya boleh satu.")
+                    return
+                timeframe = part_lower
+                continue
+            
+            # Check if it's a direction
+            if part_lower in ('long', 'short'):
+                if direction is not None:
+                    await send_error(message, "⚠️ Direction hanya boleh satu.")
+                    return
+                direction = part_lower
+                continue
+            
+            # Try to parse as EMA
+            ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
+            try:
+                ema_val = int(ema_str)
+                emas.append(ema_val)
+            except ValueError:
+                await send_error(message, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, atau EMA.")
+                return
+        
+        # Validate parsed data
+        if timeframe is None:
+            await send_error(message, "⚠️ Timeframe wajib ditentukan.")
+            return
+        
+        if len(emas) == 2:
+            ema_short, ema_long = emas
+        elif len(emas) == 1:
+            await send_error(message, "⚠️ Jika memberikan EMA, harus berpasangan (short dan long).")
+            return
+        elif len(emas) > 2:
+            await send_error(message, "⚠️ EMA maksimal 2 nilai (short dan long).")
+            return
+        else:
+            ema_short = None
+            ema_long = None
 
         # Validate direction if provided
         if direction and direction not in ('long', 'short'):
             await send_error(message, "⚠️ Direction harus `long` atau `short` jika ditentukan.")
             return
 
+        # Validation for EMAs
+        if ema_short is not None and ema_long is not None:
+            if ema_short >= ema_long:
+                await send_error(message, "⚠️ Short EMA must be less than long EMA.")
+                return
+            if ema_short < 5 or ema_long > 200:
+                await send_error(message, "⚠️ EMA periods must be between 5 and 200.")
+                return
+
         # Generate the signal
-        await generate_signal_response(message, symbol, timeframe, direction)
+        await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long)
 
     # Process other commands (important: this must be called for !signal and other commands to work)
     await bot.process_commands(message)
@@ -108,7 +167,9 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
                 timeframe=timeframe,
                 ema13=data.get('ema13_series'),
                 ema21=data.get('ema21_series'),
-                current_price=data.get('current_price')
+                current_price=data.get('current_price'),
+                ema_short=data.get('ema_short', 13),
+                ema_long=data.get('ema_long', 21)
             )
         else:
             chart_buf = generate_chart_with_setup(
@@ -125,7 +186,9 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
                 fvg_zones=data.get('fvg_zones'),
                 ob_high=data.get('ob_high'),
                 ob_low=data.get('ob_low'),
-                current_price=data.get('current_price')
+                current_price=data.get('current_price'),
+                ema_short=data.get('ema_short', 13),
+                ema_long=data.get('ema_long', 21)
             )
         
         return chart_buf
@@ -148,7 +211,7 @@ async def send_error(ctx_or_message, message: str):
         await ctx_or_message.channel.send(message)
 
 # Shared signal generation logic
-async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit"):
+async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None):
     valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
     if timeframe.lower() not in [t.lower() for t in valid_tfs]:
         await send_error(ctx_or_message, f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
@@ -169,7 +232,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         if symbol_norm not in get_all_pairs():
             return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
         # Get dict data for chart generation
-        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True)
+        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)
 
     try:
         result = await bot.loop.run_in_executor(None, run_blocking_calls)
@@ -265,15 +328,83 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
 # Commands
 # ============================
 @bot.command(name="signal")
-async def signal_command(ctx, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit"):
+async def signal_command(ctx, *args):
     """
-    Usage:
+    Usage: !signal <symbol> [timeframe] [direction] [ema_short] [ema_long]
+    Order is flexible after symbol. Examples:
       !signal BTC 1h
       !signal BTC 1h long
-      !signal BTC 1h short
-    direction is optional; if provided must be 'long' or 'short'.
+      !signal BTC short ema20 ema50 1h
+      !signal ETH ema9 ema21 4h long
     """
-    await generate_signal_response(ctx, symbol, timeframe, direction, exchange)
+    if len(args) < 2:
+        await send_error(ctx, "⚠️ Format: `!signal SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nSymbol wajib, sisanya bebas urutan.\nContoh: `!signal BTC 1h` atau `!signal ETH 4h long ema20 ema50` atau `!signal SOL short ema9 ema21 1d`")
+        return
+
+    symbol = args[0].upper()
+    remaining_parts = list(args[1:])
+    
+    # Flexible parsing (same as $ command)
+    timeframe = None
+    direction = None
+    emas = []
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+    
+    for part in remaining_parts:
+        part_lower = part.lower()
+        
+        # Check if it's a timeframe
+        if part_lower in valid_tfs:
+            if timeframe is not None:
+                await send_error(ctx, "⚠️ Timeframe hanya boleh satu.")
+                return
+            timeframe = part_lower
+            continue
+        
+        # Check if it's a direction
+        if part_lower in ('long', 'short'):
+            if direction is not None:
+                await send_error(ctx, "⚠️ Direction hanya boleh satu.")
+                return
+            direction = part_lower
+            continue
+        
+        # Try to parse as EMA
+        ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
+        try:
+            ema_val = int(ema_str)
+            emas.append(ema_val)
+        except ValueError:
+            await send_error(ctx, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, atau EMA.")
+            return
+    
+    # Validate parsed data
+    if timeframe is None:
+        await send_error(ctx, "⚠️ Timeframe wajib ditentukan.")
+        return
+    
+    if len(emas) == 2:
+        ema_short, ema_long = emas
+    elif len(emas) == 1:
+        await send_error(ctx, "⚠️ Jika memberikan EMA, harus berpasangan (short dan long).")
+        return
+    elif len(emas) > 2:
+        await send_error(ctx, "⚠️ EMA maksimal 2 nilai (short dan long).")
+        return
+    else:
+        ema_short = None
+        ema_long = None
+
+    # Validation for EMAs
+    if ema_short is not None and ema_long is not None:
+        if ema_short >= ema_long:
+            await send_error(ctx, "⚠️ Short EMA must be less than long EMA.")
+            return
+        if ema_short < 5 or ema_long > 200:
+            await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
+            return
+    
+    await generate_signal_response(ctx, symbol, timeframe, direction, "bybit", ema_short, ema_long)
 
 # ============================
 # Slash Commands
@@ -290,11 +421,14 @@ async def slash_help(interaction: discord.Interaction):
     embed.add_field(
         name="📊 **Perintah Sinyal Trading**",
         value=(
-            "🔹 **`/signal`** - Generate sinyal trading interaktif dengan dropdown\n"
+            "🔹 **`/signal`** - Generate sinyal trading interaktif dengan dropdown (support custom EMA)\n"
             "🔹 **`!signal {coin} {timeframe}`** - Cek sinyal umum (long/short)\n"
             "🔹 **`!signal {coin} {timeframe} {long/short}`** - Cek sinyal spesifik arah\n"
+            "🔹 **`!signal {coin} {timeframe} {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
+            "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
             "🔹 **`$ {coin} {timeframe}`** - Perintah cepat untuk sinyal umum\n"
-            "🔹 **`$ {coin} {timeframe} {long/short}`** - Perintah cepat spesifik"
+            "🔹 **`$ {coin} {timeframe} {long/short}`** - Perintah cepat spesifik\n"
+            "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin"
         ),
         inline=False
     )
@@ -311,9 +445,12 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal BTC 1h` → Sinyal BTC/USDT 1 jam\n"
             "• `!signal ETH 4h long` → Long ETH/USDT 4 jam\n"
             "• `!signal SOL 1d short` → Short SOL/USDT harian\n"
+            "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
+            "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
-            "• `/signal` → Slash command interaktif"
+            "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
+            "• `/signal` → Slash command interaktif (support custom EMA)"
         ),
         inline=True
     )
@@ -354,11 +491,13 @@ async def slash_help(interaction: discord.Interaction):
         # Fallback: send directly to channel
         await interaction.channel.send(embed=embed)
 
-@tree.command(name="signal", description="Generate crypto trading signal")
+@tree.command(name="signal", description="Generate crypto trading signal with custom EMAs")
 @discord.app_commands.describe(
     symbol="Trading pair symbol (e.g., BTCUSDT)",
     timeframe="Timeframe for the signal",
-    direction="Direction: Auto, Long, or Short"
+    direction="Direction: Auto, Long, or Short",
+    ema_short="Short EMA period (default: 13)",
+    ema_long="Long EMA period (default: 21)"
 )
 @discord.app_commands.choices(timeframe=[
     discord.app_commands.Choice(name="1m", value="1m"),
@@ -375,8 +514,16 @@ async def slash_help(interaction: discord.Interaction):
     discord.app_commands.Choice(name="Long", value="long"),
     discord.app_commands.Choice(name="Short", value="short")
 ])
-async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str):
+async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21):
     await interaction.response.defer()
+
+    # Validation for EMAs
+    if ema_short >= ema_long:
+        await interaction.followup.send("⚠️ Short EMA must be less than long EMA.")
+        return
+    if ema_short < 5 or ema_long > 200:
+        await interaction.followup.send("⚠️ EMA periods must be between 5 and 200.")
+        return
 
     forced = None
     if direction and direction.lower() != 'auto':
@@ -395,7 +542,7 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
             await self.interaction.followup.send(**kwargs)
 
     mock_ctx = MockInteraction(interaction)
-    await generate_signal_response(mock_ctx, symbol, timeframe, forced, "bybit")
+    await generate_signal_response(mock_ctx, symbol, timeframe, forced, "bybit", ema_short, ema_long)
 
 # ============================
 # Start bot
