@@ -219,7 +219,7 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
             )
         
         if chart_buf:
-            print(f"{LOG_PREFIX} ✅ Chart generated successfully ({len(chart_buf)} bytes)")
+            print(f"{LOG_PREFIX} ✅ Chart generated successfully ({len(chart_buf.getvalue())} bytes)")
         else:
             print(f"{LOG_PREFIX} ⚠️ Chart generation returned None")
         return chart_buf
