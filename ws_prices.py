@@ -35,6 +35,7 @@ async def _listen(url, symbols):
                 await _subscribe(ws, symbols)
                 backoff = 1
                 message_count = 0
+                price_update_count = 0
                 async for message in ws:
                     try:
                         data = json.loads(message)
@@ -73,7 +74,9 @@ async def _listen(url, symbols):
                             old_price = PRICES.get(sym)
                             PRICES[sym] = float(price)
                             if old_price != float(price):
-                                print(f"{LOG_PREFIX} 💰 Price update: {sym} = {price} (was {old_price})")
+                                price_update_count += 1
+                                if price_update_count % 100 == 0:
+                                    print(f"{LOG_PREFIX} 💰 Price update #{price_update_count}: {sym} = {price} (was {old_price})")
                         elif price is not None:
                             print(f"{LOG_PREFIX} ⚠️ Received price {price} but no symbol identified from topic: {topic}")
                     except Exception as e:
