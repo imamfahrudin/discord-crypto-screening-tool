@@ -10,7 +10,9 @@ CACHE_EXPIRY = 3600  # 1 hour in seconds
 
 BYBIT_URLS = [
     'https://api.bybit.com/v5/market/instruments-info?category=linear',
-    'https://api.bybitglobal.com/v5/market/instruments-info?category=linear'
+    'https://api.bybit.com/v5/market/instruments-info?category=spot',
+    'https://api.bybitglobal.com/v5/market/instruments-info?category=linear',
+    'https://api.bybitglobal.com/v5/market/instruments-info?category=spot'
 ]
 
 def _load_pairs_from_disk():
@@ -45,26 +47,28 @@ def get_all_pairs(force_refresh=False):
                 if isinstance(s, dict):
                     sym = s.get('symbol','')
                     status = s.get('status','')
-                    if sym.endswith('USDT') and status.lower() == 'trading':
-                        pairs.append(sym)
-                    elif sym.endswith('USDT'):
-                        print(f"⚠️ Skipping {sym} with status: {status}")  # Debug non-trading pairs
-            if pairs:
-                _PAIRS_CACHE = pairs
-                print(f"📊 Fetched {len(pairs)} trading pairs from Bybit API")
-                try:
-                    cache_data = {
-                        'pairs': pairs,
-                        'timestamp': time.time()
-                    }
-                    with open(CACHE_FILE, 'w') as f:
-                        json.dump(cache_data, f)
-                except Exception:
-                    pass
-                return _PAIRS_CACHE
+                    if sym.endswith('USDT'):
+                        if status.lower() == 'trading':
+                            if sym not in pairs:
+                                pairs.append(sym)
+                        else:
+                            print(f"⚠️ Skipping {sym} with status: {status}")  # Debug non-trading pairs
         except Exception:
             time.sleep(0.5)
             continue
+    if pairs:
+        _PAIRS_CACHE = pairs
+        print(f"📊 Fetched {len(pairs)} trading pairs from Bybit API")
+        try:
+            cache_data = {
+                'pairs': pairs,
+                'timestamp': time.time()
+            }
+            with open(CACHE_FILE, 'w') as f:
+                json.dump(cache_data, f)
+        except Exception:
+            pass
+        return _PAIRS_CACHE
     _PAIRS_CACHE = disk or []
     return _PAIRS_CACHE
 

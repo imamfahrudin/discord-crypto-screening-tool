@@ -7,7 +7,7 @@ from datetime import datetime
 import re
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
-from bybit_data import normalize_symbol, pair_exists
+from bybit_data import normalize_symbol, pair_exists, get_all_pairs
 from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
 from chart_generator import generate_chart_with_setup, generate_neutral_chart

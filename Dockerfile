@@ -14,4 +14,5 @@ RUN apt-get update && apt-get install -y curl && \
 
 COPY . .
 
-CMD ["sh", "-c", "cloudflared proxy-dns --upstream https://1.1.1.1/dns-query --port 53 & python discord_bot.py"]
+ENV PYTHONUNBUFFERED=1
+CMD ["sh", "-c", "cloudflared proxy-dns --upstream https://1.1.1.1/dns-query --port 53 & python -u discord_bot.py"]
