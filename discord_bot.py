@@ -12,6 +12,8 @@ from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
 from chart_generator import generate_chart_with_setup, generate_neutral_chart
 
+LOG_PREFIX = "[discord_bot]"
+
 load_dotenv()
 
 # ============================
@@ -35,24 +37,29 @@ tree = bot.tree
 # ============================
 @bot.event
 async def on_ready():
-    print(f"✅ Bot connected as {bot.user}")
-    print("⏳ Loading pair cache from Bybit API...")
+    print(f"{LOG_PREFIX} ✅ Bot connected as {bot.user}")
+    print(f"{LOG_PREFIX} ⏳ Loading pair cache from Bybit API...")
     try:
-        if not get_all_pairs(force_refresh=True):
-            print("⚠️ WARNING: Failed to load any trading pairs from Bybit API.")
+        pairs = get_all_pairs(force_refresh=True)
+        if not pairs:
+            print(f"{LOG_PREFIX} ⚠️ WARNING: Failed to load any trading pairs from Bybit API.")
         else:
-            print(f"✅ Successfully loaded {len(get_all_pairs())} trading pairs.")
+            print(f"{LOG_PREFIX} ✅ Successfully loaded {len(pairs)} trading pairs.")
     except Exception as e:
-        print(f"❌ CRITICAL ERROR while fetching pairs: {e}")
+        print(f"{LOG_PREFIX} ❌ CRITICAL ERROR while fetching pairs: {e}")
+        traceback.print_exc()
 
+    print(f"{LOG_PREFIX} 🚀 Starting WebSocket connections for price updates...")
     start_ws_in_background(url=WS_URL, symbols=["BTCUSDT", "ETHUSDT", "SOLUSDT"])
+    print(f"{LOG_PREFIX} 📡 WebSocket connections initiated")
 
-    # Sync slash commands
+    print(f"{LOG_PREFIX} 🔄 Syncing slash commands...")
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash command(s)")
+        print(f"{LOG_PREFIX} ✅ Synced {len(synced)} slash command(s)")
     except Exception as e:
-        print(f"Failed to sync slash commands: {e}")
+        print(f"{LOG_PREFIX} ❌ Failed to sync slash commands: {e}")
+        traceback.print_exc()
 
 @bot.event
 async def on_message(message):
@@ -62,18 +69,22 @@ async def on_message(message):
 
     # Check if message starts with "$" for quick signal commands
     if message.content.startswith('$'):
+        print(f"{LOG_PREFIX} 💬 Processing $ command from {message.author}: '{message.content}'")
         content = message.content[1:].strip()  # Remove the "$" and strip whitespace
         if not content:
+            print(f"{LOG_PREFIX} ⚠️ Empty content after $, ignoring")
             return  # Empty after "$", ignore
 
         # Parse the content: symbol [timeframe] [direction] [ema_short] [ema_long] (flexible order)
         parts = content.split()
         if len(parts) < 2:
+            print(f"{LOG_PREFIX} ⚠️ Insufficient parts in $ command: {len(parts)}")
             await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nCoin harus di depan, sisanya bebas urutan.\nContoh: `$BTC 1h` atau `$ETH 4h long ema20 ema50` atau `$SOL short ema9 ema21 1d`")
             return
 
         symbol = parts[0].upper()
         remaining_parts = parts[1:]
+        print(f"{LOG_PREFIX} 📊 Parsed symbol: {symbol}, remaining parts: {remaining_parts}")
         
         # Flexible parsing
         timeframe = None
@@ -87,6 +98,7 @@ async def on_message(message):
             # Check if it's a timeframe
             if part_lower in valid_tfs:
                 if timeframe is not None:
+                    print(f"{LOG_PREFIX} ⚠️ Multiple timeframes detected: {timeframe} and {part_lower}")
                     await send_error(message, "⚠️ Timeframe hanya boleh satu.")
                     return
                 timeframe = part_lower
@@ -95,6 +107,7 @@ async def on_message(message):
             # Check if it's a direction
             if part_lower in ('long', 'short'):
                 if direction is not None:
+                    print(f"{LOG_PREFIX} ⚠️ Multiple directions detected: {direction} and {part_lower}")
                     await send_error(message, "⚠️ Direction hanya boleh satu.")
                     return
                 direction = part_lower
@@ -105,21 +118,28 @@ async def on_message(message):
             try:
                 ema_val = int(ema_str)
                 emas.append(ema_val)
+                print(f"{LOG_PREFIX} 📈 Parsed EMA value: {ema_val}")
             except ValueError:
+                print(f"{LOG_PREFIX} ⚠️ Invalid parameter: {part}")
                 await send_error(message, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, atau EMA.")
                 return
         
+        print(f"{LOG_PREFIX} ✅ Parsed parameters - Timeframe: {timeframe}, Direction: {direction}, EMAs: {emas}")
+        
         # Validate parsed data
         if timeframe is None:
+            print(f"{LOG_PREFIX} ⚠️ No timeframe specified")
             await send_error(message, "⚠️ Timeframe wajib ditentukan.")
             return
         
         if len(emas) == 2:
             ema_short, ema_long = emas
         elif len(emas) == 1:
+            print(f"{LOG_PREFIX} ⚠️ Only one EMA provided: {emas}")
             await send_error(message, "⚠️ Jika memberikan EMA, harus berpasangan (short dan long).")
             return
         elif len(emas) > 2:
+            print(f"{LOG_PREFIX} ⚠️ Too many EMAs provided: {emas}")
             await send_error(message, "⚠️ EMA maksimal 2 nilai (short dan long).")
             return
         else:
@@ -128,18 +148,22 @@ async def on_message(message):
 
         # Validate direction if provided
         if direction and direction not in ('long', 'short'):
+            print(f"{LOG_PREFIX} ⚠️ Invalid direction: {direction}")
             await send_error(message, "⚠️ Direction harus `long` atau `short` jika ditentukan.")
             return
 
         # Validation for EMAs
         if ema_short is not None and ema_long is not None:
             if ema_short >= ema_long:
+                print(f"{LOG_PREFIX} ⚠️ Invalid EMA values: short({ema_short}) >= long({ema_long})")
                 await send_error(message, "⚠️ Short EMA must be less than long EMA.")
                 return
             if ema_short < 5 or ema_long > 200:
+                print(f"{LOG_PREFIX} ⚠️ EMA values out of range: short({ema_short}), long({ema_long})")
                 await send_error(message, "⚠️ EMA periods must be between 5 and 200.")
                 return
 
+        print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
         # Generate the signal
         await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long)
 
@@ -159,8 +183,10 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
     """Generate chart from trade plan data dict"""
     try:
         direction = data.get('direction', 'neutral').lower()
+        print(f"{LOG_PREFIX} 📊 Generating chart for {symbol} {timeframe} direction: {direction}")
         
         if direction == 'neutral':
+            print(f"{LOG_PREFIX} 🎨 Creating neutral chart")
             chart_buf = generate_neutral_chart(
                 df=data['df'],
                 symbol=symbol,
@@ -172,6 +198,7 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
                 ema_long=data.get('ema_long', 21)
             )
         else:
+            print(f"{LOG_PREFIX} 🎨 Creating signal chart with setup")
             chart_buf = generate_chart_with_setup(
                 df=data['df'],
                 symbol=symbol,
@@ -191,9 +218,13 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
                 ema_long=data.get('ema_long', 21)
             )
         
+        if chart_buf:
+            print(f"{LOG_PREFIX} ✅ Chart generated successfully ({len(chart_buf)} bytes)")
+        else:
+            print(f"{LOG_PREFIX} ⚠️ Chart generation returned None")
         return chart_buf
     except Exception as e:
-        print(f"Chart generation error: {e}")
+        print(f"{LOG_PREFIX} ❌ Chart generation error: {e}")
         traceback.print_exc()
         return None
 
@@ -212,8 +243,11 @@ async def send_error(ctx_or_message, message: str):
 
 # Shared signal generation logic
 async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None):
+    print(f"{LOG_PREFIX} 🚀 Starting signal generation for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
+    
     valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
     if timeframe.lower() not in [t.lower() for t in valid_tfs]:
+        print(f"{LOG_PREFIX} ⚠️ Invalid timeframe: {timeframe}")
         await send_error(ctx_or_message, f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
         return
 
@@ -221,42 +255,58 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
     if direction:
         dir_norm = direction.strip().lower()
         if dir_norm not in ('long','short'):
+            print(f"{LOG_PREFIX} ⚠️ Invalid direction: {direction}")
             await send_error(ctx_or_message, "⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
             return
         forced = dir_norm
 
     def run_blocking_calls():
+        print(f"{LOG_PREFIX} 🔄 Executing blocking signal generation logic")
         symbol_norm = normalize_symbol(symbol)
         if not pair_exists(symbol_norm):
+            print(f"{LOG_PREFIX} ❌ Pair not available: {symbol_norm}")
             return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
         # Get dict data for chart generation
-        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)
+        result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)
+        print(f"{LOG_PREFIX} ✅ Signal generation completed for {symbol_norm}")
+        return result
 
     try:
+        print(f"{LOG_PREFIX} ⏳ Running signal generation in thread pool...")
         result = await bot.loop.run_in_executor(None, run_blocking_calls)
         if isinstance(result, str) and result.startswith("❌ Pair"):
+            print(f"{LOG_PREFIX} ❌ Pair validation failed: {result}")
             await send_error(ctx_or_message, result)
             return
 
         symbol_norm = normalize_symbol(symbol)
+        print(f"{LOG_PREFIX} 📊 Generating chart for {symbol_norm}...")
         
         # Generate chart
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
         
         # Create embed
+        print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
         embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
         
         # Send with chart attachment
         if chart_buf:
+            print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf)} bytes)")
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
             await send_response(ctx_or_message, embed=embed, file=file)
+            print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
         else:
+            print(f"{LOG_PREFIX} 📤 Sending response without chart")
             await send_response(ctx_or_message, embed=embed)
+            print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
             
     except ValueError as e:
+        print(f"{LOG_PREFIX} ⚠️ ValueError in signal generation: {e}")
         await send_error(ctx_or_message, f"⚠️ Error in input/data: `{e}`")
     except Exception as e:
         tb = traceback.format_exc()
+        print(f"{LOG_PREFIX} ❌ Unexpected error in signal generation: {e}")
+        print(f"{LOG_PREFIX} 📄 Full traceback:\n{tb}")
         await send_error(ctx_or_message, f"⚠️ Error generating signal. Cek log terminal: `{e}`")
         print(tb)
 
@@ -410,6 +460,8 @@ async def signal_command(ctx, *args):
 @tree.command(name="help", description="Tampilkan perintah yang tersedia dan informasi penggunaan")
 async def slash_help(interaction: discord.Interaction):
     """Tampilkan perintah yang tersedia dan informasi penggunaan"""
+    print(f"{LOG_PREFIX} ❓ Help command triggered by {interaction.user}")
+    
     embed = discord.Embed(
         title="🤖💎 **CRYPTO SIGNAL BOT** — Panduan Lengkap",
         description="🚀 **Bot Sinyal Trading Cryptocurrency** dengan analisis teknikal canggih menggunakan indikator RSI dan EMA untuk membantu trading Anda!",
@@ -483,9 +535,11 @@ async def slash_help(interaction: discord.Interaction):
     )
 
     try:
+        print(f"{LOG_PREFIX} 📤 Sending help embed")
         await interaction.response.send_message(embed=embed)
+        print(f"{LOG_PREFIX} ✅ Help command completed successfully")
     except Exception as e:
-        print(f"Help command failed: {e}")
+        print(f"{LOG_PREFIX} ❌ Help command failed: {e}")
         # Fallback: send directly to channel
         await interaction.channel.send(embed=embed)
 
@@ -513,13 +567,18 @@ async def slash_help(interaction: discord.Interaction):
     discord.app_commands.Choice(name="Short", value="short")
 ])
 async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21):
+    print(f"{LOG_PREFIX} ⚡ Slash signal command triggered by {interaction.user}: symbol={symbol}, timeframe={timeframe}, direction={direction}, ema_short={ema_short}, ema_long={ema_long}")
+    
     await interaction.response.defer()
+    print(f"{LOG_PREFIX} ⏳ Deferred slash command response")
 
     # Validation for EMAs
     if ema_short >= ema_long:
+        print(f"{LOG_PREFIX} ⚠️ Invalid EMA values in slash command: short({ema_short}) >= long({ema_long})")
         await interaction.followup.send("⚠️ Short EMA must be less than long EMA.")
         return
     if ema_short < 5 or ema_long > 200:
+        print(f"{LOG_PREFIX} ⚠️ EMA values out of range in slash command: short({ema_short}), long({ema_long})")
         await interaction.followup.send("⚠️ EMA periods must be between 5 and 200.")
         return
 
@@ -527,10 +586,12 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
     if direction and direction.lower() != 'auto':
         dir_norm = direction.strip().lower()
         if dir_norm not in ('long','short'):
+            print(f"{LOG_PREFIX} ⚠️ Invalid direction in slash command: {direction}")
             await interaction.followup.send("⚠️ Direction harus 'auto', 'long', atau 'short'.")
             return
         forced = dir_norm
 
+    print(f"{LOG_PREFIX} 🚀 Processing slash signal generation")
     # Create a mock context-like object for the helper function
     class MockInteraction:
         def __init__(self, interaction):
@@ -541,12 +602,15 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
 
     mock_ctx = MockInteraction(interaction)
     await generate_signal_response(mock_ctx, symbol, timeframe, forced, "bybit", ema_short, ema_long)
+    print(f"{LOG_PREFIX} ✅ Slash signal command completed")
 
 # ============================
 # Start bot
 # ============================
 if __name__ == "__main__":
     if not TOKEN or TOKEN == "YOUR_NEW_DISCORD_TOKEN":
-        print("ERROR: Please set your Discord token in config.json or DISCORD_TOKEN environment variable.")
+        print(f"{LOG_PREFIX} ❌ ERROR: Please set your Discord token in config.json or DISCORD_TOKEN environment variable.")
+        exit(1)
     else:
+        print(f"{LOG_PREFIX} 🚀 Starting Discord bot...")
         bot.run(TOKEN)
