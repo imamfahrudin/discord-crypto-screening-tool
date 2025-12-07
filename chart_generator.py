@@ -56,42 +56,42 @@ def generate_chart_with_setup(df: pd.DataFrame,
     
     if ema13 is not None:
         ema13_plot = ema13.tail(100)
-        add_plots.append(mpf.make_addplot(ema13_plot, color='#00BFFF', width=1.5, label='EMA 13'))
+        add_plots.append(mpf.make_addplot(ema13_plot, color='#00BFFF', width=2, label='EMA 13'))
     
     if ema21 is not None:
         ema21_plot = ema21.tail(100)
-        add_plots.append(mpf.make_addplot(ema21_plot, color='#FF6347', width=1.5, label='EMA 21'))
+        add_plots.append(mpf.make_addplot(ema21_plot, color='#FF6B9D', width=2, label='EMA 21'))
     
-    # Custom style with white background
+    # Custom style with modern light theme
     mc = mpf.make_marketcolors(
-        up='#26a69a', down='#ef5350',
+        up='#00D4AA', down='#FF6B6B',  # Teal for up, coral for down
         edge='inherit',
-        wick={'up':'#26a69a', 'down':'#ef5350'},
-        volume={'up':'#26a69a', 'down':'#ef5350'},  # Volume bars match candle colors
+        wick={'up':'#00D4AA', 'down':'#FF6B6B'},
+        volume={'up':'#00D4AA', 'down':'#FF6B6B'},
         alpha=0.9
     )
     
     s = mpf.make_mpf_style(
         marketcolors=mc,
         gridcolor='#e0e0e0',
-        gridstyle='--',
-        y_on_right=True,  # Move price axis to the right
+        gridstyle=':',
+        y_on_right=True,
         facecolor='#ffffff',
-        edgecolor='#e0e0e0',
+        edgecolor='#000000',  # Black outer border
         figcolor='#ffffff',
         gridaxis='both'
     )
     
-    # Create figure
+    # Create figure with improved styling
     plot_kwargs = {
         'type': 'candle',
         'style': s,
-        'volume': True,  # Enable volume bars
-        'volume_panel': 1,  # Volume panel position
-        'panel_ratios': (6, 1),  # Main chart:Volume ratio (6:1 keeps chart from shifting up)
+        'volume': True,
+        'volume_panel': 1,
+        'panel_ratios': (7, 1),  # Better ratio for dark theme
         'ylabel': 'Price',
         'ylabel_lower': 'Volume',
-        'figsize': (14, 8),
+        'figsize': (16, 9),  # Wider aspect ratio
         'returnfig': True,
         'warn_too_much_data': 200
     }
@@ -103,14 +103,22 @@ def generate_chart_with_setup(df: pd.DataFrame,
     
     ax = axes[0]
     
-    # Make volume bars semi-transparent if volume subplot exists
+    # Make volume bars semi-transparent and styled
     if len(axes) > 1:
         volume_ax = axes[1]
         # Find volume bars and set transparency
         for collection in volume_ax.collections:
-            collection.set_alpha(0.6)  # Semi-transparent volume bars
+            collection.set_alpha(0.7)
         for patch in volume_ax.patches:
-            patch.set_alpha(0.6)  # Semi-transparent volume bars
+            patch.set_alpha(0.7)
+        volume_ax.set_facecolor('#ffffff')
+        volume_ax.grid(True, alpha=0.2, linestyle=':', linewidth=0.5)
+    
+    # Set black borders for all axes
+    for axis in axes:
+        for spine in axis.spines.values():
+            spine.set_edgecolor('black')
+            spine.set_linewidth(1.5)
     
     # Get y-axis limits for proper line drawing
     y_min, y_max = ax.get_ylim()
@@ -121,20 +129,20 @@ def generate_chart_with_setup(df: pd.DataFrame,
     ax.set_xlim(x_min - x_range * 0.05, x_max + x_range * 0.15)  # Extend right side
     x_min, x_max = ax.get_xlim()  # Update after adjustment
     
-    # Draw position setup levels
+    # Draw position setup levels with modern colors
     if direction != 'neutral' and entry_price and stop_loss:
-        # Entry level (blue)
-        ax.axhline(y=entry_price, color='#2962FF', linestyle='--', linewidth=2, label=f'Entry: {entry_price:.6f}', alpha=0.8)
+        # Entry level (bright blue)
+        ax.axhline(y=entry_price, color='#00BFFF', linestyle='--', linewidth=2.5, label=f'Entry: {entry_price:.6f}', alpha=0.9)
         
-        # Stop loss level (red)
-        ax.axhline(y=stop_loss, color='#FF5252', linestyle='--', linewidth=2, label=f'SL: {stop_loss:.6f}', alpha=0.8)
+        # Stop loss level (bright red)
+        ax.axhline(y=stop_loss, color='#FF6B6B', linestyle='--', linewidth=2.5, label=f'SL: {stop_loss:.6f}', alpha=0.9)
         
-        # Take profit levels (green)
+        # Take profit levels (bright green)
         if tp1:
-            ax.axhline(y=tp1, color='#00E676', linestyle='--', linewidth=1.5, label=f'TP1: {tp1:.6f}', alpha=0.7)
+            ax.axhline(y=tp1, color='#00D4AA', linestyle='--', linewidth=2, label=f'TP1: {tp1:.6f}', alpha=0.8)
         
         if tp2:
-            ax.axhline(y=tp2, color='#00C853', linestyle='--', linewidth=2, label=f'TP2: {tp2:.6f}', alpha=0.8)
+            ax.axhline(y=tp2, color='#00F5A0', linestyle='--', linewidth=2.5, label=f'TP2: {tp2:.6f}', alpha=0.9)
         
         # Draw risk/reward zone blocks (square boxes on the right - limit order placement)
         # Calculate block position (further right to show future limit order)
@@ -143,12 +151,12 @@ def generate_chart_with_setup(df: pd.DataFrame,
         block_end = x_max - block_width * 0.3
         
         if direction == 'long':
-            # Risk zone (red block)
+            # Risk zone (red block with gradient effect)
             rect_risk = patches.Rectangle(
                 (block_start, stop_loss), 
                 block_end - block_start, 
                 entry_price - stop_loss,
-                linewidth=1, edgecolor='#FF5252', facecolor='red', alpha=0.2
+                linewidth=2, edgecolor='#FF6B6B', facecolor='#FF6B6B', alpha=0.3
             )
             ax.add_patch(rect_risk)
             
@@ -158,7 +166,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
                     (block_start, entry_price), 
                     block_end - block_start, 
                     tp2 - entry_price,
-                    linewidth=1, edgecolor='#00E676', facecolor='green', alpha=0.2
+                    linewidth=2, edgecolor='#00D4AA', facecolor='#00D4AA', alpha=0.3
                 )
                 ax.add_patch(rect_reward)
                 
@@ -167,16 +175,16 @@ def generate_chart_with_setup(df: pd.DataFrame,
                 mid_y = (entry_price + tp2) / 2
                 ax.text(block_start + (block_end - block_start) / 2, mid_y, 
                        f'{rr_ratio:.1f}R', 
-                       fontsize=10, fontweight='bold', color='white',
+                       fontsize=12, fontweight='bold', color='white',
                        ha='center', va='center',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='green', alpha=0.7))
+                       bbox=dict(boxstyle='round,pad=0.4', facecolor='#00D4AA', edgecolor='white', alpha=0.9))
         else:  # short
             # Risk zone (red block)
             rect_risk = patches.Rectangle(
                 (block_start, entry_price), 
                 block_end - block_start, 
                 stop_loss - entry_price,
-                linewidth=1, edgecolor='#FF5252', facecolor='red', alpha=0.2
+                linewidth=2, edgecolor='#FF6B6B', facecolor='#FF6B6B', alpha=0.3
             )
             ax.add_patch(rect_risk)
             
@@ -186,7 +194,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
                     (block_start, tp2), 
                     block_end - block_start, 
                     entry_price - tp2,
-                    linewidth=1, edgecolor='#00E676', facecolor='green', alpha=0.2
+                    linewidth=2, edgecolor='#00D4AA', facecolor='#00D4AA', alpha=0.3
                 )
                 ax.add_patch(rect_reward)
                 
@@ -195,11 +203,11 @@ def generate_chart_with_setup(df: pd.DataFrame,
                 mid_y = (tp2 + entry_price) / 2
                 ax.text(block_start + (block_end - block_start) / 2, mid_y, 
                        f'{rr_ratio:.1f}R', 
-                       fontsize=10, fontweight='bold', color='white',
+                       fontsize=12, fontweight='bold', color='white',
                        ha='center', va='center',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='green', alpha=0.7))
+                       bbox=dict(boxstyle='round,pad=0.4', facecolor='#00D4AA', edgecolor='white', alpha=0.9))
     
-    # Draw FVG zones (if provided)
+    # Draw FVG zones with modern colors
     if fvg_zones:
         for fvg in fvg_zones[-5:]:  # Show last 5 FVG zones
             fvg_type = fvg.get('type', '')
@@ -207,95 +215,95 @@ def generate_chart_with_setup(df: pd.DataFrame,
             fvg_low = fvg.get('low')
             
             if fvg_high and fvg_low:
-                color = '#FFA726' if fvg_type == 'Bullish' else '#AB47BC'
-                ax.fill_between([x_min, x_max], fvg_low, fvg_high, color=color, alpha=0.08)
+                color = '#FFD93D' if fvg_type == 'Bullish' else '#A855F7'  # Yellow for bullish, purple for bearish
+                ax.fill_between([x_min, x_max], fvg_low, fvg_high, color=color, alpha=0.15)
                 # Add FVG label outside the chart
                 mid_y = (fvg_high + fvg_low) / 2
                 ax.text(x_max + (x_max - x_min) * 0.02, mid_y, f'FVG {fvg_type[:4]}', 
-                       fontsize=8, color=color, alpha=0.8,
+                       fontsize=9, color=color, alpha=0.9,
                        ha='left', va='center',
-                       bbox=dict(boxstyle='round,pad=0.3', facecolor='#ffffff', edgecolor=color, alpha=0.7))
+                       bbox=dict(boxstyle='round,pad=0.3', facecolor='#ffffff', edgecolor=color, alpha=0.8))
     
-    # Draw Order Block levels
+    # Draw Order Block levels with modern colors
     if ob_high:
-        ax.axhline(y=ob_high, color='#FFA726', linestyle=':', linewidth=1.5, label=f'OB High: {ob_high:.6f}', alpha=0.6)
+        ax.axhline(y=ob_high, color='#FFD93D', linestyle=':', linewidth=2, label=f'OB High: {ob_high:.6f}', alpha=0.7)
     
     if ob_low:
-        ax.axhline(y=ob_low, color='#AB47BC', linestyle=':', linewidth=1.5, label=f'OB Low: {ob_low:.6f}', alpha=0.6)
+        ax.axhline(y=ob_low, color='#A855F7', linestyle=':', linewidth=2, label=f'OB Low: {ob_low:.6f}', alpha=0.7)
     
-    # Draw current price marker
+    # Draw current price marker with modern styling
     if current_price:
-        ax.axhline(y=current_price, color='#F57C00', linestyle='-', linewidth=1, alpha=0.5)
-        # Shift current price label further to the left to avoid overlap
-        ax.text(x_min + (x_max - x_min) * 0.35, current_price, f'Current: {current_price:.6f}', 
-               fontsize=9, color='#F57C00', alpha=0.9,
-               ha='center', va='bottom',
-               bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#F57C00', alpha=0.8))
+        ax.axhline(y=current_price, color='#FFD93D', linestyle='-', linewidth=2, alpha=0.8)
+        # Shift current price label further to the left to avoid overlap with larger box
+        ax.text(x_min + (x_max - x_min) * 0.25, current_price, f'Current: {current_price:.6f}', 
+               fontsize=13, color='#FFD93D', alpha=0.9,
+               ha='center', va='center',
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='#000000', edgecolor='#FFD93D', alpha=0.9))
     
-    # Add centered labels for trade levels
+    # Add centered labels for trade levels with dark theme
     if direction != 'neutral' and entry_price and stop_loss:
         center_x = x_min + (x_max - x_min) * 0.5
         
-        # Entry/Limit price label (blue)
+        # Entry/Limit price label (bright blue)
         ax.text(center_x, entry_price, f'Limit: {entry_price:.6f}', 
-               fontsize=10, color='#2962FF', alpha=0.9,
+               fontsize=13, color='#00BFFF', alpha=0.9,
                ha='center', va='center',
-               bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#2962FF', alpha=0.9))
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='#000000', edgecolor='#00BFFF', alpha=0.9))
         
-        # Stop Loss label (red)
+        # Stop Loss label (bright red)
         ax.text(center_x, stop_loss, f'SL: {stop_loss:.6f}', 
-               fontsize=10, color='#FF5252', alpha=0.9,
+               fontsize=13, color='#FF6B6B', alpha=0.9,
                ha='center', va='center',
-               bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#FF5252', alpha=0.9))
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='#000000', edgecolor='#FF6B6B', alpha=0.9))
         
-        # Take Profit labels (green)
+        # Take Profit labels (bright green)
         if tp1:
             ax.text(center_x, tp1, f'TP1: {tp1:.6f}', 
-                   fontsize=10, color='#00E676', alpha=0.9,
+                   fontsize=13, color='#00D4AA', alpha=0.9,
                    ha='center', va='center',
-                   bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#00E676', alpha=0.9))
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor='#000000', edgecolor='#00D4AA', alpha=0.9))
         
         if tp2:
             ax.text(center_x, tp2, f'TP2: {tp2:.6f}', 
-                   fontsize=10, color='#00C853', alpha=0.9,
+                   fontsize=13, color='#00F5A0', alpha=0.9,
                    ha='center', va='center',
-                   bbox=dict(boxstyle='round,pad=0.4', facecolor='#ffffff', edgecolor='#00C853', alpha=0.9))
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor='#000000', edgecolor='#00F5A0', alpha=0.9))
     
-    # Add direction arrow/label
+    # Add direction arrow/label with modern styling
     if direction != 'neutral':
-        arrow_color = '#00E676' if direction == 'long' else '#FF5252'
+        arrow_color = '#00D4AA' if direction == 'long' else '#FF6B6B'
         arrow_symbol = '▲' if direction == 'long' else '▼'
         direction_text = f'{arrow_symbol} {direction.upper()}'
         
         # Position at top-left (shifted down a bit)
         ax.text(0.02, 0.95, direction_text,
                transform=ax.transAxes,
-               fontsize=16, fontweight='bold',
+               fontsize=18, fontweight='bold',
                color=arrow_color,
                ha='left', va='top',
-               bbox=dict(boxstyle='round,pad=0.5', facecolor='#ffffff', edgecolor=arrow_color, linewidth=2, alpha=0.9))
+               bbox=dict(boxstyle='round,pad=0.6', facecolor='#ffffff', edgecolor=arrow_color, linewidth=2, alpha=0.9))
     
-    # Title and formatting
+    # Title and formatting with light theme
     timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
     ax.set_title(f'{symbol} • {timeframe.upper()} • {timestamp}', 
-                color='#212121', fontsize=14, pad=20, fontweight='bold')
+                color='#212121', fontsize=16, pad=20, fontweight='bold')
     
-    # Legend - positioned at bottom left
+    # Legend - positioned at bottom left with light theme
     ax.legend(loc='lower left', bbox_to_anchor=(0.0, 0.0), 
              frameon=True, fancybox=True, shadow=True,
-             facecolor='#f5f5f5', edgecolor='#bdbdbd',
-             fontsize=9, labelcolor='#212121')
+             facecolor='#f9f9f9', edgecolor='#cccccc',
+             fontsize=10, labelcolor='#212121')
     
-    # Grid styling
-    ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
+    # Grid styling for light theme
+    ax.grid(True, alpha=0.3, linestyle=':', linewidth=0.5)
     ax.set_facecolor('#ffffff')
     
     # Adjust layout
     plt.tight_layout()
     
-    # Save to BytesIO
+    # Save to BytesIO with higher quality
     buf = BytesIO()
-    fig.savefig(buf, format='png', dpi=150, facecolor='#ffffff', edgecolor='none', bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=200, facecolor='#ffffff', edgecolor='none', bbox_inches='tight')
     buf.seek(0)
     
     # Close figure to free memory
