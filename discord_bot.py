@@ -366,7 +366,9 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "**/signal** - Generate sinyal trading (dengan dropdown untuk timeframe & arah)\n"
             "**!signal {coin} {timeframe}** - Cek sinyal umum (long dan short)\n"
-            "**!signal {coin} {timeframe} {long/short}** - Cek sinyal spesifik arah"
+            "**!signal {coin} {timeframe} {long/short}** - Cek sinyal spesifik arah\n"
+            "**$ {coin} {timeframe}** - Perintah cepat untuk sinyal umum\n"
+            "**$ {coin} {timeframe} {long/short}** - Perintah cepat untuk sinyal spesifik"
         ),
         inline=False
     )
@@ -383,6 +385,8 @@ async def slash_help(interaction: discord.Interaction):
             "**!signal BTC 1h** - Cek sinyal BTC/USDT 1 jam\n"
             "**!signal ETH 4h long** - Cek sinyal long ETH/USDT 4 jam\n"
             "**!signal SOL 1d short** - Cek sinyal short SOL/USDT harian\n"
+            "**$BTC 1h** - Perintah cepat untuk sinyal BTC 1 jam\n"
+            "**$ETH 4h long** - Perintah cepat untuk sinyal long ETH 4 jam\n"
             "**/signal** - Gunakan perintah slash interaktif"
         ),
         inline=False
