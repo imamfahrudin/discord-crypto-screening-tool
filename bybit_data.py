@@ -6,6 +6,7 @@ import json
 
 _PAIRS_CACHE = None
 CACHE_FILE = os.path.join(os.path.dirname(__file__), 'pairs_cache.json')
+CACHE_EXPIRY = 3600  # 1 hour in seconds
 
 BYBIT_URLS = [
     'https://api.bybit.com/v5/market/instruments-info?category=linear',
@@ -17,8 +18,10 @@ def _load_pairs_from_disk():
         if os.path.exists(CACHE_FILE):
             with open(CACHE_FILE, 'r') as f:
                 data = json.load(f)
-                if isinstance(data, list):
-                    return data
+                if isinstance(data, dict) and 'pairs' in data and 'timestamp' in data:
+                    current_time = time.time()
+                    if current_time - data['timestamp'] < CACHE_EXPIRY:
+                        return data['pairs']
     except Exception:
         pass
     return None
@@ -28,7 +31,7 @@ def get_all_pairs(force_refresh=False):
     if _PAIRS_CACHE is not None and not force_refresh:
         return _PAIRS_CACHE
     disk = _load_pairs_from_disk()
-    if disk:
+    if disk and not force_refresh:
         _PAIRS_CACHE = disk
         return _PAIRS_CACHE
     pairs = []
@@ -47,8 +50,12 @@ def get_all_pairs(force_refresh=False):
             if pairs:
                 _PAIRS_CACHE = pairs
                 try:
+                    cache_data = {
+                        'pairs': pairs,
+                        'timestamp': time.time()
+                    }
                     with open(CACHE_FILE, 'w') as f:
-                        json.dump(pairs, f)
+                        json.dump(cache_data, f)
                 except Exception:
                     pass
                 return _PAIRS_CACHE

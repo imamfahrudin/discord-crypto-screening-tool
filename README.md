@@ -18,7 +18,7 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 - **Customizable Signals**: Configurable RSI and EMA parameters
 - **Multiple Bot Instances**: Run multiple independent bots simultaneously
 - **Docker Support**: Ready-to-deploy with Docker and Docker Compose
-- **Persistent Caching**: Caches trading pairs for faster lookups
+- **Dynamic Caching**: Automatically refreshes trading pairs cache every hour to include new listings and delistings
 - **Error Handling**: Robust error handling and logging for reliable operation
 - **Rate Limiting**: Built-in delays to respect API limits
 
