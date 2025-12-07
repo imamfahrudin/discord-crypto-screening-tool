@@ -197,16 +197,15 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
     interval = interval_map.get(timeframe.lower(), "1D")
     tv_url = f"https://www.tradingview.com/chart/?symbol={data.get('exchange','BYBIT')}:{symbol}&interval={interval}"
     
-    # NETRAL
+    embed = discord.Embed(color=color)
+    
     if direction == "NETRAL":
-        title = f"{emoji} {symbol} — {timeframe.upper()} NETRAL"
-        description = (
-            f"**Analisis:** Pasar konsolidasi atau kriteria FVG/Momentum tidak terpenuhi.\n"
-            f"🕒 **Timeframe:** `{timeframe.upper()}`\n"
-            f"🧭 **Time:** `{current_time}`\n\n"
-            f"🔗 [📈 Open Chart on TradingView]({tv_url})\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
+        embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL"
+        embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
+        
+        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
     else:
         entry_fmt = format_price_dynamic(data.get('entry'))
         sl_fmt = format_price_dynamic(data.get('stop_loss'))
@@ -215,26 +214,25 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
-        title = f"{BOT_TITLE_PREFIX} {direction} {symbol}"
-        description = (
-            f"📊 **PAIR:** `{symbol}`\n"
-            f"🕒 **TIMEFRAME:** `{timeframe.upper()}`\n"
-            f"🧭 **Time:** `{current_time}`\n\n"
-            f"📈 **ENTRY:** `{entry_fmt}`\n"
-            f"🛑 **STOP LOSS:** `{sl_fmt}`\n"
-            f"🎯 **TAKE PROFIT (Target Likuiditas):**\n"
-            f"> TP Awal (1.5R) → `{tp1_fmt}`\n"
-            f"**🏆 TP Final →** `{tp2_fmt}` **({rr_fmt})**\n\n"
-            f"💡 **CONFIDENCE:** {confidence}\n\n"
-            f"🔗 [📈 Open Chart on TradingView]({tv_url})\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
+        embed.title = f"{BOT_TITLE_PREFIX} {direction} {symbol}"
+        embed.description = f"{emoji} **{direction} Signal** for {symbol} on {timeframe.upper()} timeframe"
+        
+        embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
+        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        
+        embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
+        embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)
+        embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
+        
+        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
+        embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
+        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=True)
     
-    embed = discord.Embed(title=title, description=description, color=color)
     last_price_fmt = format_price_dynamic(data.get('current_price'))
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     
-    # Set chart as thumbnail (will be attached separately)
+    # Set chart as image (will be attached separately)
     embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
     
     return embed
