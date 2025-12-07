@@ -54,6 +54,39 @@ async def on_ready():
     except Exception as e:
         print(f"Failed to sync slash commands: {e}")
 
+@bot.event
+async def on_message(message):
+    # Ignore messages from the bot itself
+    if message.author == bot.user:
+        return
+
+    # Check if message starts with "$" for quick signal commands
+    if message.content.startswith('$'):
+        content = message.content[1:].strip()  # Remove the "$" and strip whitespace
+        if not content:
+            return  # Empty after "$", ignore
+
+        # Parse the content: symbol timeframe [direction]
+        parts = content.split()
+        if len(parts) < 2:
+            await send_error(message, "⚠️ Format: `$SYMBOL TIMEFRAME [long/short]`\nContoh: `$BTC 1h` atau `$ETH 4h long`")
+            return
+
+        symbol = parts[0].upper()
+        timeframe = parts[1].lower()
+        direction = parts[2].lower() if len(parts) > 2 else None
+
+        # Validate direction if provided
+        if direction and direction not in ('long', 'short'):
+            await send_error(message, "⚠️ Direction harus `long` atau `short` jika ditentukan.")
+            return
+
+        # Generate the signal
+        await generate_signal_response(message, symbol, timeframe, direction)
+
+    # Process other commands (important: this must be called for !signal and other commands to work)
+    await bot.process_commands(message)
+
 # ============================
 # Helper for embed formatting
 # ============================
@@ -100,6 +133,71 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
         print(f"Chart generation error: {e}")
         traceback.print_exc()
         return None
+
+# Helper functions for sending responses (works for both commands and direct messages)
+async def send_response(ctx_or_message, **kwargs):
+    if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
+        await ctx_or_message.send(**kwargs)
+    else:  # It's a discord.Message
+        await ctx_or_message.channel.send(**kwargs)
+
+async def send_error(ctx_or_message, message: str):
+    if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
+        await ctx_or_message.send(message)
+    else:  # It's a discord.Message
+        await ctx_or_message.channel.send(message)
+
+# Shared signal generation logic
+async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit"):
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+    if timeframe.lower() not in [t.lower() for t in valid_tfs]:
+        await send_error(ctx_or_message, f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
+        return
+
+    forced = None
+    if direction:
+        dir_norm = direction.strip().lower()
+        if dir_norm not in ('long','short'):
+            await send_error(ctx_or_message, "⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
+            return
+        forced = dir_norm
+
+    def run_blocking_calls():
+        symbol_norm = normalize_symbol(symbol)
+        if symbol_norm not in get_all_pairs():
+            get_all_pairs(force_refresh=True)
+        if symbol_norm not in get_all_pairs():
+            return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
+        # Get dict data for chart generation
+        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True)
+
+    try:
+        result = await bot.loop.run_in_executor(None, run_blocking_calls)
+        if isinstance(result, str) and result.startswith("❌ Pair"):
+            await send_error(ctx_or_message, result)
+            return
+
+        symbol_norm = normalize_symbol(symbol)
+        
+        # Generate chart
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
+        
+        # Create embed
+        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
+        
+        # Send with chart attachment
+        if chart_buf:
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
+            await send_response(ctx_or_message, embed=embed, file=file)
+        else:
+            await send_response(ctx_or_message, embed=embed)
+            
+    except ValueError as e:
+        await send_error(ctx_or_message, f"⚠️ Error in input/data: `{e}`")
+    except Exception as e:
+        tb = traceback.format_exc()
+        await send_error(ctx_or_message, f"⚠️ Error generating signal. Cek log terminal: `{e}`")
+        print(tb)
 
 # Create embed (insight hidden)
 def create_signal_embed(plan_string: str, symbol: str, timeframe: str):
@@ -249,55 +347,7 @@ async def signal_command(ctx, symbol: str, timeframe: str, direction: str = None
       !signal BTC 1h short
     direction is optional; if provided must be 'long' or 'short'.
     """
-    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
-    if timeframe.lower() not in [t.lower() for t in valid_tfs]:
-        await ctx.send(f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
-        return
-
-    forced = None
-    if direction:
-        dir_norm = direction.strip().lower()
-        if dir_norm not in ('long','short'):
-            await ctx.send("⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
-            return
-        forced = dir_norm
-
-    def run_blocking_calls():
-        symbol_norm = normalize_symbol(symbol)
-        if symbol_norm not in get_all_pairs():
-            get_all_pairs(force_refresh=True)
-        if symbol_norm not in get_all_pairs():
-            return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
-        # Get dict data for chart generation
-        return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True)
-
-    try:
-        result = await bot.loop.run_in_executor(None, run_blocking_calls)
-        if isinstance(result, str) and result.startswith("❌ Pair"):
-            await ctx.send(result)
-            return
-
-        symbol_norm = normalize_symbol(symbol)
-        
-        # Generate chart
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
-        
-        # Create embed
-        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
-        
-        # Send with chart attachment
-        if chart_buf:
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-            await ctx.send(embed=embed, file=file)
-        else:
-            await ctx.send(embed=embed)
-            
-    except ValueError as e:
-        await ctx.send(f"⚠️ Error in input/data: `{e}`")
-    except Exception as e:
-        tb = traceback.format_exc()
-        await ctx.send(f"⚠️ Error generating signal. Cek log terminal: `{e}`")
-        print(tb)
+    await generate_signal_response(ctx, symbol, timeframe, direction, exchange)
 
 # ============================
 # Slash Commands
@@ -381,11 +431,6 @@ async def slash_help(interaction: discord.Interaction):
 async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str):
     await interaction.response.defer()
 
-    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
-    if timeframe.lower() not in [t.lower() for t in valid_tfs]:
-        await interaction.followup.send(f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
-        return
-
     forced = None
     if direction and direction.lower() != 'auto':
         dir_norm = direction.strip().lower()
@@ -394,42 +439,16 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
             return
         forced = dir_norm
 
-    def run_blocking_calls():
-        symbol_norm = normalize_symbol(symbol)
-        if symbol_norm not in get_all_pairs():
-            get_all_pairs(force_refresh=True)
-        if symbol_norm not in get_all_pairs():
-            return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
-        # Get dict data for chart generation
-        return generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=forced, return_dict=True)
+    # Create a mock context-like object for the helper function
+    class MockInteraction:
+        def __init__(self, interaction):
+            self.interaction = interaction
+        
+        async def send(self, **kwargs):
+            await self.interaction.followup.send(**kwargs)
 
-    try:
-        result = await bot.loop.run_in_executor(None, run_blocking_calls)
-        if isinstance(result, str) and result.startswith("❌ Pair"):
-            await interaction.followup.send(result)
-            return
-
-        symbol_norm = normalize_symbol(symbol)
-        
-        # Generate chart
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
-        
-        # Create embed
-        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
-        
-        # Send with chart attachment
-        if chart_buf:
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-            await interaction.followup.send(embed=embed, file=file)
-        else:
-            await interaction.followup.send(embed=embed)
-            
-    except ValueError as e:
-        await interaction.followup.send(f"⚠️ Error in input/data: `{e}`")
-    except Exception as e:
-        tb = traceback.format_exc()
-        await interaction.followup.send(f"⚠️ Error generating signal. Cek log terminal: `{e}`")
-        print(tb)
+    mock_ctx = MockInteraction(interaction)
+    await generate_signal_response(mock_ctx, symbol, timeframe, forced, "bybit")
 
 # ============================
 # Start bot
