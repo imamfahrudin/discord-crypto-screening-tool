@@ -5,10 +5,13 @@ from ws_prices import PRICES
 from bybit_data import fetch_ohlc, normalize_symbol
 from utils import calculate_rr, format_price_dynamic
 
+LOG_PREFIX = "[signal_logic]"
+
 # ------------------------------
 # Helper: FVG / SMC detection
 # ------------------------------
 def detect_fvg(df: pd.DataFrame):
+    print(f"{LOG_PREFIX} 🔍 Detecting FVGs in {len(df)} candles")
     fvg_data = []
     for i in range(2, len(df)):
         c1 = df.iloc[i-2]
@@ -33,9 +36,11 @@ def detect_fvg(df: pd.DataFrame):
                 'level': fvg_level,
                 'bar_index': i
             })
+    print(f"{LOG_PREFIX} ✅ Detected {len(fvg_data)} FVGs")
     return fvg_data
 
 def find_smc_levels(df: pd.DataFrame, fvgs: list, direction: str):
+    print(f"{LOG_PREFIX} 🔍 Finding SMC levels for direction: {direction}")
     last_candle = df.iloc[-1]
     relevant_fvg = None
     if fvgs:
@@ -43,6 +48,12 @@ def find_smc_levels(df: pd.DataFrame, fvgs: list, direction: str):
         filtered = [f for f in fvgs if f['type'] == target_type]
         if filtered:
             relevant_fvg = min(filtered, key=lambda f: abs(f['level'] - last_candle['close']))
+            print(f"{LOG_PREFIX} ✅ Found relevant FVG: {relevant_fvg['type']} at level {relevant_fvg['level']:.6f}")
+        else:
+            print(f"{LOG_PREFIX} ⚠️ No {target_type} FVGs found")
+    else:
+        print(f"{LOG_PREFIX} ⚠️ No FVGs available for SMC analysis")
+    
     ob_high, ob_low = None, None
     if relevant_fvg:
         ob_idx = relevant_fvg['bar_index'] - 2
@@ -50,6 +61,11 @@ def find_smc_levels(df: pd.DataFrame, fvgs: list, direction: str):
             ob_candle = df.iloc[ob_idx]
             ob_high = ob_candle['high']
             ob_low = ob_candle['low']
+            print(f"{LOG_PREFIX} 📊 Order Block: high={ob_high:.6f}, low={ob_low:.6f}")
+        else:
+            print(f"{LOG_PREFIX} ⚠️ Order Block index out of range: {ob_idx}")
+    
+    print(f"{LOG_PREFIX} ✅ SMC analysis complete")
     return ob_high, ob_low, relevant_fvg
 
 # ------------------------------
@@ -64,6 +80,7 @@ def calculate_confidence_score(direction,
                                relevant_fvg, ob_high, ob_low,
                                entry_price, current_price,
                                ema_short=13, ema_long=21):
+    print(f"{LOG_PREFIX} 📊 Calculating confidence score for {direction} direction")
     score = 0
     reasons = []
 
@@ -156,6 +173,8 @@ def calculate_confidence_score(direction,
     else:
         label = "VERY LOW 🚨"
 
+    print(f"{LOG_PREFIX} ✅ Confidence score calculated: {score}% {label}")
+    print(f"{LOG_PREFIX} 📋 Reasons: {', '.join(reasons)}")
     return score, label, reasons
 
 # ------------------------------
@@ -170,15 +189,21 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     ema_short: Short EMA period (default 13)
     ema_long: Long EMA period (default 21)
     """
+    print(f"{LOG_PREFIX} 🚀 Starting trade plan generation for {symbol} {timeframe} (forced: {forced_direction}, ema: {ema_short}/{ema_long})")
+    
     symbol = normalize_symbol(symbol)
     # timeframe validation is expected upstream (discord bot), but keep friendly check
     if timeframe.lower() not in [t.lower() for t in VALID_TFS]:
+        print(f"{LOG_PREFIX} ⚠️ Invalid timeframe: {timeframe}")
         raise ValueError(f"Timeframe {timeframe} invalid. Pilih salah satu {VALID_TFS}")
 
+    print(f"{LOG_PREFIX} 📊 Fetching OHLC data for {symbol}")
     df = fetch_ohlc(symbol, timeframe)
     if df is None or df.empty or len(df) < 50:
+        print(f"{LOG_PREFIX} ❌ Insufficient OHLC data: {len(df) if df is not None else 0} candles")
         raise ValueError("Failed to fetch sufficient OHLC data (need min 50 candles)")
 
+    print(f"{LOG_PREFIX} 📈 Calculating technical indicators")
     # Indicators
     df['ema13'] = ta.trend.EMAIndicator(df['close'], window=ema_short).ema_indicator()
     df['ema21'] = ta.trend.EMAIndicator(df['close'], window=ema_long).ema_indicator()
@@ -207,6 +232,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     sym = symbol.upper()
     ws_price = PRICES.get(sym)
     current_price = float(ws_price) if ws_price is not None else float(last['close'])
+    print(f"{LOG_PREFIX} 💰 Current price: {current_price} (ws: {ws_price is not None})")
 
     # Values
     ema13 = float(last['ema13'])
@@ -230,9 +256,12 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     elif ema13 < ema21 and rsi_val > 30:
         direction = 'short'
 
+    print(f"{LOG_PREFIX} 📊 Auto-determined direction: {direction} (EMA13: {ema13:.6f}, EMA21: {ema21:.6f}, RSI: {rsi_val:.2f})")
+
     # Apply forced direction override if provided and valid
     if forced_direction and forced_direction.lower() in ('long', 'short'):
         direction = forced_direction.lower()
+        print(f"{LOG_PREFIX} 🔄 Applied forced direction: {direction}")
 
     # FVG/OB detection
     fvgs = detect_fvg(df)
@@ -309,6 +338,8 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     tp1 = entry_price + risk * 1.5 if direction == 'long' else entry_price - risk * 1.5
     rr = calculate_rr(entry_price, stop, tp2)
 
+    print(f"{LOG_PREFIX} 📊 Entry/Exit calculated - Entry: {entry_price:.6f}, Stop: {stop:.6f}, TP1: {tp1:.6f}, TP2: {tp2:.6f}, RR: {rr:.2f}")
+
     # Confidence
     confidence, level, reasons = calculate_confidence_score(
         direction, ema13, ema21, macd_line, macd_signal, rsi_val,
@@ -332,6 +363,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
 
     # Return dict or string based on parameter
     if return_dict:
+        print(f"{LOG_PREFIX} ✅ Returning dict format for {direction.upper()} signal")
         return {
             'direction': direction.upper(),
             'entry': entry_price,
@@ -361,6 +393,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
         }
     
     # Final return string (same format as before - backward compatible)
+    print(f"{LOG_PREFIX} ✅ Returning string format for {direction.upper()} signal")
     return (
         f"DIRECTION: **{direction.upper()}**\n"
         f"ENTRY: {entry_price}\n"
