@@ -34,14 +34,9 @@ async def _listen(url, symbols):
                 print(f"{LOG_PREFIX} ✅ WebSocket connected successfully")
                 await _subscribe(ws, symbols)
                 backoff = 1
-                message_count = 0
-                price_update_count = 0
                 async for message in ws:
                     try:
                         data = json.loads(message)
-                        message_count += 1
-                        if message_count % 100 == 0:  # Log every 100 messages to avoid spam
-                            print(f"{LOG_PREFIX} 📊 Processed {message_count} messages")
                     except Exception as e:
                         print(f"{LOG_PREFIX} ❌ Failed to parse message: {e}")
                         continue
@@ -74,9 +69,7 @@ async def _listen(url, symbols):
                             old_price = PRICES.get(sym)
                             PRICES[sym] = float(price)
                             if old_price != float(price):
-                                price_update_count += 1
-                                if price_update_count % 100 == 0:
-                                    print(f"{LOG_PREFIX} 💰 Price update #{price_update_count}: {sym} = {price} (was {old_price})")
+                                pass  # Price updated, no logging
                         elif price is not None:
                             print(f"{LOG_PREFIX} ⚠️ Received price {price} but no symbol identified from topic: {topic}")
                     except Exception as e:
