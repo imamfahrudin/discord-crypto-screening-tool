@@ -291,7 +291,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         
         # Send with chart attachment
         if chart_buf:
-            print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf)} bytes)")
+            print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
             await send_response(ctx_or_message, embed=embed, file=file)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
