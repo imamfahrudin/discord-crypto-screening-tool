@@ -47,8 +47,11 @@ def get_all_pairs(force_refresh=False):
                     status = s.get('status','')
                     if sym.endswith('USDT') and status.lower() == 'trading':
                         pairs.append(sym)
+                    elif sym.endswith('USDT'):
+                        print(f"⚠️ Skipping {sym} with status: {status}")  # Debug non-trading pairs
             if pairs:
                 _PAIRS_CACHE = pairs
+                print(f"📊 Fetched {len(pairs)} trading pairs from Bybit API")
                 try:
                     cache_data = {
                         'pairs': pairs,
@@ -77,8 +80,11 @@ def pair_exists(symbol: str) -> bool:
     if symbol in pairs:
         return True
     # Not found in cache, force refresh from API
+    print(f"🔄 Refreshing pairs cache for {symbol}...")
     pairs = get_all_pairs(force_refresh=True)
-    return symbol in pairs
+    found = symbol in pairs
+    print(f"✅ Cache refreshed. {symbol} found: {found}")
+    return found
 
 def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     symbol = normalize_symbol(symbol)
