@@ -256,6 +256,48 @@ async def get_available_coins():
     # Run in executor since get_all_pairs might be blocking
     return await bot.loop.run_in_executor(None, fetch_coins)
 
+class CoinListView(discord.ui.View):
+    def __init__(self, chunks, total_coins, timeout=300):
+        super().__init__(timeout=timeout)
+        self.chunks = chunks
+        self.total_coins = total_coins
+        self.current_page = 0
+        self.total_pages = len(chunks)
+        self.update_buttons()
+
+    def update_buttons(self):
+        self.children[0].disabled = self.current_page == 0  # Previous
+        self.children[1].disabled = self.current_page == self.total_pages - 1  # Next
+
+    def get_embed(self):
+        chunk = self.chunks[self.current_page]
+        start_num = self.current_page * len(self.chunks[0]) + 1
+        coin_list = "\n".join(f"{start_num + i}. {coin}" for i, coin in enumerate(chunk))
+        
+        embed = discord.Embed(
+            title=f"🪙 Available Coins for Trading Signals (Page {self.current_page + 1}/{self.total_pages})",
+            description=f"Here are the supported coins (base currencies from Bybit pairs):\n\n{coin_list}",
+            color=0x00FF88
+        )
+        embed.set_footer(text=f"{BOT_FOOTER_NAME} • Total coins: {self.total_coins} • Page {self.current_page + 1}/{self.total_pages}")
+        return embed
+
+    @discord.ui.button(label="Previous", style=discord.ButtonStyle.primary, emoji="⬅️")
+    async def previous_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            embed = self.get_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+
+    @discord.ui.button(label="Next", style=discord.ButtonStyle.primary, emoji="➡️")
+    async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if self.current_page < self.total_pages - 1:
+            self.current_page += 1
+            self.update_buttons()
+            embed = self.get_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+
 # Shared signal generation logic
 async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None):
     print(f"{LOG_PREFIX} 🚀 Starting signal generation for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
@@ -483,20 +525,15 @@ async def coinlist_command(ctx):
             await send_error(ctx, "⚠️ No coins available at the moment. Try again later.")
             return
         
-        # Format the list (Discord embed description has a 4096 char limit, so chunk if needed)
-        coin_list = ", ".join(coins)
-        if len(coin_list) > 4000:  # Leave some buffer
-            coin_list = coin_list[:4000] + "... (truncated)"
+        # Split coins into chunks of 100 for pagination
+        chunk_size = 100
+        chunks = [coins[i:i + chunk_size] for i in range(0, len(coins), chunk_size)]
         
-        embed = discord.Embed(
-            title="🪙 Available Coins for Trading Signals",
-            description=f"Here are the supported coins (base currencies from Bybit pairs):\n\n{coin_list}",
-            color=0x00FF88
-        )
-        embed.set_footer(text=f"{BOT_FOOTER_NAME} • Total coins: {len(coins)}")
+        view = CoinListView(chunks, len(coins))
+        embed = view.get_embed()
         
-        await send_response(ctx, embed=embed)
-        print(f"{LOG_PREFIX} ✅ Coinlist sent successfully ({len(coins)} coins)")
+        await send_response(ctx, embed=embed, view=view)
+        print(f"{LOG_PREFIX} ✅ Coinlist sent successfully ({len(coins)} coins in {len(chunks)} pages)")
     
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Coinlist command error: {e}")
@@ -666,20 +703,15 @@ async def slash_coinlist(interaction: discord.Interaction):
             await interaction.followup.send("⚠️ No coins available at the moment. Try again later.")
             return
         
-        # Format the list (same as bot command)
-        coin_list = ", ".join(coins)
-        if len(coin_list) > 4000:
-            coin_list = coin_list[:4000] + "... (truncated)"
+        # Split coins into chunks of 100 for pagination
+        chunk_size = 100
+        chunks = [coins[i:i + chunk_size] for i in range(0, len(coins), chunk_size)]
         
-        embed = discord.Embed(
-            title="🪙 Available Coins for Trading Signals",
-            description=f"Here are the supported coins (base currencies from Bybit pairs):\n\n{coin_list}",
-            color=0x00FF88
-        )
-        embed.set_footer(text=f"{BOT_FOOTER_NAME} • Total coins: {len(coins)}")
+        view = CoinListView(chunks, len(coins))
+        embed = view.get_embed()
         
-        await interaction.followup.send(embed=embed)
-        print(f"{LOG_PREFIX} ✅ Slash coinlist sent successfully ({len(coins)} coins)")
+        await interaction.followup.send(embed=embed, view=view)
+        print(f"{LOG_PREFIX} ✅ Slash coinlist sent successfully ({len(coins)} coins in {len(chunks)} pages)")
     
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Slash coinlist command error: {e}")
