@@ -90,6 +90,7 @@ async def on_message(message):
         timeframe = None
         direction = None
         emas = []
+        show_detail = False
         valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
         
         for part in remaining_parts:
@@ -113,6 +114,11 @@ async def on_message(message):
                 direction = part_lower
                 continue
             
+            # Check if it's detail flag
+            if part_lower == 'detail':
+                show_detail = True
+                continue
+            
             # Try to parse as EMA
             ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
             try:
@@ -121,7 +127,7 @@ async def on_message(message):
                 print(f"{LOG_PREFIX} 📈 Parsed EMA value: {ema_val}")
             except ValueError:
                 print(f"{LOG_PREFIX} ⚠️ Invalid parameter: {part}")
-                await send_error(message, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, atau EMA.")
+                await send_error(message, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, EMA, atau 'detail'.")
                 return
         
         print(f"{LOG_PREFIX} ✅ Parsed parameters - Timeframe: {timeframe}, Direction: {direction}, EMAs: {emas}")
@@ -163,9 +169,9 @@ async def on_message(message):
                 await send_error(message, "⚠️ EMA periods must be between 5 and 200.")
                 return
 
-        print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
+        print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long} detail={show_detail}")
         # Generate the signal
-        await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long)
+        await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
 
     # Process other commands (important: this must be called for !signal and other commands to work)
     await bot.process_commands(message)
@@ -299,7 +305,7 @@ class CoinListView(discord.ui.View):
             await interaction.response.edit_message(embed=embed, view=self)
 
 # Shared signal generation logic
-async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None):
+async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None, show_detail: bool = False):
     print(f"{LOG_PREFIX} 🚀 Starting signal generation for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
     
     valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
@@ -344,7 +350,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         
         # Create embed
         print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
-        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe)
+        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail)
         
         # Send with chart attachment
         if chart_buf:
@@ -367,7 +373,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         await send_error(ctx_or_message, f"⚠️ Error generating signal. Cek log terminal: `{e}`")
         print(tb)
 
-def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
+def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False):
     """Create embed from dict data (new format)"""
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
     
@@ -398,6 +404,8 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
         embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
         embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
+        if show_detail:
+            embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     else:
         entry_fmt = format_price_dynamic(data.get('entry'))
         sl_fmt = format_price_dynamic(data.get('stop_loss'))
@@ -420,6 +428,8 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
         embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
         embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
         embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=True)
+        if show_detail:
+            embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     
     last_price_fmt = format_price_dynamic(data.get('current_price'))
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
@@ -453,6 +463,7 @@ async def signal_command(ctx, *args):
     timeframe = None
     direction = None
     emas = []
+    show_detail = False
     valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
     
     for part in remaining_parts:
@@ -474,13 +485,18 @@ async def signal_command(ctx, *args):
             direction = part_lower
             continue
         
+        # Check if it's detail flag
+        if part_lower == 'detail':
+            show_detail = True
+            continue
+        
         # Try to parse as EMA
         ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
         try:
             ema_val = int(ema_str)
             emas.append(ema_val)
         except ValueError:
-            await send_error(ctx, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, atau EMA.")
+            await send_error(ctx, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, EMA, atau 'detail'.")
             return
     
     # Validate parsed data
@@ -509,7 +525,7 @@ async def signal_command(ctx, *args):
             await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
             return
     
-    await generate_signal_response(ctx, symbol, timeframe, direction, "bybit", ema_short, ema_long)
+    await generate_signal_response(ctx, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
 
 @bot.command(name="coinlist")
 async def coinlist_command(ctx):
@@ -561,9 +577,11 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`!signal {coin} {timeframe} {long/short}`** - Cek sinyal spesifik arah\n"
             "🔹 **`!signal {coin} {timeframe} {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
             "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
+            "🔹 **`!signal {coin} {timeframe} detail`** - Tampilkan analisis detail lengkap\n"
             "🔹 **`$ {coin} {timeframe}`** - Perintah cepat untuk sinyal umum\n"
             "🔹 **`$ {coin} {timeframe} {long/short}`** - Perintah cepat spesifik\n"
             "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
+            "🔹 **`$ {coin} {timeframe} detail`** - Perintah cepat dengan analisis detail\n"
             "🔹 **`!coinlist`** - Lihat daftar coin yang tersedia\n"
             "🔹 **`/coinlist`** - Slash command untuk daftar coin"
         ),
@@ -584,9 +602,11 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal SOL 1d short` → Short SOL/USDT harian\n"
             "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
+            "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
+            "• `$BTC 1h detail` → Cepat dengan analisis detail\n"
             "• `/signal` → Slash command interaktif (support custom EMA)"
         ),
         inline=True
@@ -597,7 +617,8 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
             "**⏱️ TIMEFRAME**: Lihat kolom sebelah kiri\n"
-            "**📈 DIRECTION**: Auto (default), Long, Short"
+            "**📈 DIRECTION**: Auto (default), Long, Short\n"
+            "**📊 DETAIL**: Tambahkan 'detail' untuk analisis lengkap"
         ),
         inline=False
     )
@@ -608,7 +629,8 @@ async def slash_help(interaction: discord.Interaction):
             "• Gunakan timeframe yang sesuai dengan gaya trading Anda\n"
             "• Signal auto akan memilih arah terbaik berdasarkan analisis\n"
             "• Chart akan dilampirkan otomatis dengan setup lengkap\n"
-            "• Bot menggunakan data real-time dari Bybit"
+            "• Bot menggunakan data real-time dari Bybit\n"
+            "• Tambahkan 'detail' untuk melihat analisis teknikal mendalam"
         ),
         inline=False
     )

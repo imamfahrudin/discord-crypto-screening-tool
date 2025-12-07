@@ -91,9 +91,9 @@ def calculate_confidence_score(direction,
     elif direction == 'short' and ema13 < ema21:
         score += 12; reasons.append(f"EMA Bearish ({ema_short}<{ema_long})")
     if ema_spread_pct > 1:
-        score += 8; reasons.append("Spread EMA kuat (>%1)")
+        score += 8; reasons.append(f"Spread EMA kuat (>{ema_spread_pct:.1f}%)")
     elif ema_spread_pct > 0.5:
-        score += 4; reasons.append("Spread EMA moderat")
+        score += 4; reasons.append(f"Spread EMA moderat ({ema_spread_pct:.1f}%)")
 
     # MACD
     macd_diff = macd_line - macd_signal
@@ -110,7 +110,7 @@ def calculate_confidence_score(direction,
     if 40 <= rsi <= 60:
         score += 15; reasons.append("RSI netral (40-60)")
     elif 30 <= rsi < 40 or 60 < rsi <= 70:
-        score += 8; reasons.append("RSI acceptable (30-40/60-70)")
+        score += 8; reasons.append("RSI dapat diterima (30-40/60-70)")
     else:
         reasons.append("RSI ekstrem (kurang ideal)")
 
@@ -123,29 +123,29 @@ def calculate_confidence_score(direction,
     if relevant_fvg:
         dist = abs(entry_price - relevant_fvg['level']) / (current_price if current_price != 0 else 1) * 100
         if dist <= 0.2:
-            smc_score += 5; reasons.append("Entry dekat FVG/OB (<0.2%)")
+            smc_score += 5; reasons.append(f"Entry dekat FVG/OB (<{dist:.1f}%)")
     score += smc_score
 
     # Stochastic
     stoch_score = 0
     if stoch_k is not None and stoch_d is not None:
         if direction == 'long' and stoch_k > stoch_d:
-            stoch_score += 8; reasons.append("Stoch bullish crossover")
+            stoch_score += 8; reasons.append("Stochastic bullish crossover")
             if stoch_k < 20:
-                stoch_score += 4; reasons.append("Stoch oversold (supportive)")
+                stoch_score += 4; reasons.append("Stochastic oversold (mendukung)")
             elif stoch_k > 80:
-                stoch_score -= 3; reasons.append("Stoch overbought (peringatan)")
+                stoch_score -= 3; reasons.append("Stochastic overbought (peringatan)")
         elif direction == 'short' and stoch_k < stoch_d:
-            stoch_score += 8; reasons.append("Stoch bearish crossover")
+            stoch_score += 8; reasons.append("Stochastic bearish crossover")
             if stoch_k > 80:
-                stoch_score += 4; reasons.append("Stoch overbought (supportive)")
+                stoch_score += 4; reasons.append("Stochastic overbought (mendukung)")
             elif stoch_k < 20:
-                stoch_score -= 3; reasons.append("Stoch oversold (peringatan)")
+                stoch_score -= 3; reasons.append("Stochastic oversold (peringatan)")
         else:
             if direction == 'long' and stoch_k < 30:
-                stoch_score += 3; reasons.append("Stoch low but belum crossover")
+                stoch_score += 3; reasons.append("Stochastic rendah tapi belum crossover")
             elif direction == 'short' and stoch_k > 70:
-                stoch_score += 3; reasons.append("Stoch high but belum crossover")
+                stoch_score += 3; reasons.append("Stochastic tinggi tapi belum crossover")
     stoch_score = max(min(stoch_score, 12), -5)
     score += stoch_score
 
@@ -272,10 +272,13 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
 
     if direction == 'neutral':
         indicators_insight = (
-            f"EMA{ema_short}: {format_price_dynamic(ema13)} • EMA{ema_long}: {format_price_dynamic(ema21)}\n"
-            f"MACD: {macd_line:.5f} | Signal: {macd_signal:.5f}\n"
-            f"RSI: {rsi_val:.2f} | ATR: {atr:.4f}\n"
-            f"EMA Crossover tidak jelas atau RSI terlalu ekstrim. Range/Konsolidasi."
+            f"**📊 Indikator Teknis:**\n"
+            f"- EMA{ema_short}: {format_price_dynamic(ema13)} | EMA{ema_long}: {format_price_dynamic(ema21)}\n"
+            f"- MACD: {macd_line:.2f} | Signal: {macd_signal:.2f}\n"
+            f"- RSI: {rsi_val:.2f} | ATR: {atr:.2f}\n\n"
+            f"**📝 Kesimpulan:**\n"
+            f"- EMA crossover tidak jelas atau RSI terlalu ekstrim.\n"
+            f"- Market dalam fase range/konsolidasi."
         )
         
         if return_dict:
@@ -349,15 +352,19 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
 
     # Build insight (kept for internal use but may be hidden in embed)
     ob_desc = "Ditemukan" if relevant_fvg else "Tidak ditemukan"
-    reason_text = "\n- ".join([""] + reasons)
+    reason_text = "\n".join(f"- {reason}" for reason in reasons)
 
     indicators_insight = (
-        f"EMA{ema_short}: {format_price_dynamic(ema13)} • EMA{ema_long}: {format_price_dynamic(ema21)}\n"
-        f"MACD: {macd_line:.5f} | Signal: {macd_signal:.5f}\n"
-        f"FVG/OB Info: {ob_desc}\n"
-        f"STOCH K/D: {format_price_dynamic(stoch_k)}/{format_price_dynamic(stoch_d)} | Vol xEMA20: {format_price_dynamic(vol_ratio) if vol_ratio else '-'}\n"
-        f"RSI: {rsi_val:.2f} | ATR: {atr:.4f}\n"
-        f"{'EMA Bullish' if direction=='long' else 'EMA Bearish'} • Entry di FVG/OB Retest jika ada.\n"
+        f"**📊 Indikator Teknis:**\n"
+        f"- EMA{ema_short}: {format_price_dynamic(ema13)} | EMA{ema_long}: {format_price_dynamic(ema21)}\n"
+        f"- MACD: {macd_line:.2f} | Signal: {macd_signal:.2f}\n"
+        f"- RSI: {rsi_val:.2f} | ATR: {atr:.2f}\n"
+        f"- Stochastic K/D: {format_price_dynamic(stoch_k)} / {format_price_dynamic(stoch_d)}\n"
+        f"- Volume Ratio: {format_price_dynamic(vol_ratio) if vol_ratio else '-'}x\n\n"
+        f"**🔍 Analisis FVG/OB:**\n"
+        f"- Status: {ob_desc}\n"
+        f"- {'Bullish' if direction=='long' else 'Bearish'} setup • Entry di retest FVG/OB jika ada.\n\n"
+        f"**💡 Faktor Confidence ({confidence}%):**\n"
         f"{reason_text}"
     )
 
