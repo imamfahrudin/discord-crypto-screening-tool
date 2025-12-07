@@ -4,7 +4,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-An intelligent Discord bot that provides real-time cryptocurrency trading signals using technical analysis indicators like RSI (Relative Strength Index) and EMA (Exponential Moving Average). Perfect for crypto traders looking for automated screening and signal generation.
+An intelligent Discord bot that provides real-time cryptocurrency trading signals using technical analysis indicators like RSI (Relative Strength Index) and EMA (Exponential Moving Average). Features interactive slash commands, chart generation with position setup visualization, and support for multiple bot instances.
 
 ## 🌟 Features
 
@@ -12,7 +12,11 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 - **Discord Integration**: Posts trading signals directly to Discord channels
 - **WebSocket Price Feeds**: Real-time price data from Bybit exchange
 - **Modern Slash Commands**: Interactive commands with dropdown menus for easy use
+- **Chart Generation**: Visual position setup with entry/SL/TP levels, FVG zones, EMAs, and volume bars
+- **Quick Commands**: Support for $ prefix for faster signal checks
+- **Indonesian Help**: Localized help commands in Indonesian
 - **Customizable Signals**: Configurable RSI and EMA parameters
+- **Multiple Bot Instances**: Run multiple independent bots simultaneously
 - **Docker Support**: Ready-to-deploy with Docker and Docker Compose
 - **Persistent Caching**: Caches trading pairs for faster lookups
 - **Error Handling**: Robust error handling and logging for reliable operation
@@ -135,12 +139,16 @@ Then edit each `.env` file with your settings:
 DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
 BYBIT_WS_URL=wss://stream.bybit.com/v5/public/linear
 OHLC_LIMIT=500
+BOT_TITLE_PREFIX=💎 CRYPTO SIGNAL —
+BOT_FOOTER_NAME=Crypto Bot
 ```
 
 **Configuration Options:**
 - **DISCORD_TOKEN** (required): Your Discord bot token - Must be unique for each bot instance
 - **BYBIT_WS_URL** (optional): WebSocket URL for Bybit price feeds. Default: `wss://stream.bybit.com/v5/public/linear`
 - **OHLC_LIMIT** (optional): Number of OHLC candles to fetch for analysis. Default: 500
+- **BOT_TITLE_PREFIX** (optional): Prefix for embed titles. Default: `💎 CRYPTO SIGNAL —`
+- **BOT_FOOTER_NAME** (optional): Name shown in embed footers. Default: `Crypto Bot`
 
 ### Multiple Bot Instances
 
@@ -154,11 +162,12 @@ You can run multiple bot instances simultaneously, each with different tokens se
 ## 🔧 How It Works
 
 1. **Initialization**: Bot loads configuration and establishes Discord connection
-2. **Command Handling**: Listens for `!signal` commands and `/signal` slash commands in Discord channels
+2. **Command Handling**: Listens for `!signal`, `$signal`, and `/signal` slash commands in Discord channels
 3. **Data Fetching**: Retrieves real-time price data via WebSocket from Bybit
 4. **Signal Calculation**: Applies RSI and EMA analysis to generate trading signals
-5. **Response**: Posts formatted signals back to the Discord channel
-6. **Caching**: Maintains pair cache for efficient lookups
+5. **Chart Generation**: Creates visual charts with position setup, EMAs, FVG zones, and volume bars
+6. **Response**: Posts formatted signals with embedded charts back to the Discord channel
+7. **Caching**: Maintains pair cache for efficient lookups
 
 ## 📊 Usage
 
@@ -171,6 +180,10 @@ The bot supports both traditional prefix commands and modern slash commands:
 #### Prefix Commands
 - `!signal {coin} {timeframe}` - General signal check (shows both long and short signals)
 - `!signal {coin} {timeframe} {long/short}` - Specific direction signal check
+
+#### Quick Commands ($ Prefix)
+- `$SYMBOL TIMEFRAME` - Quick signal check (e.g., `$BTC 1h`, `$ETH 4h long`)
+- `$SYMBOL TIMEFRAME long/short` - Quick specific direction check
 
 #### Slash Commands (Recommended)
 The bot now supports Discord's modern slash commands with dropdown helpers:
@@ -190,6 +203,8 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 - `!signal BTC 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
 - `!signal ETH 4h short` - Check for short signals on ETH/USDT 4-hour chart
 - `!signal HYPE 1d` - Check for signals on HYPE/USDT daily chart
+- `$BTC 1h` - Quick check for BTC signals
+- `$ETH 4h long` - Quick long signal check for ETH
 - `/signal` - Use the interactive slash command with dropdowns
 - `/help` - Show help information in Indonesian
 
@@ -198,7 +213,27 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 - **TIMEFRAME**: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
 - **DIRECTION**: Auto (default), Long, or Short
 
-## 🛠️ Advanced Usage
+## 📊 Chart Features
+
+The bot generates professional trading charts with comprehensive position setup visualization:
+
+### Chart Elements
+- **Candlestick Charts**: 100-period candlestick display with modern styling
+- **Technical Indicators**: EMA 13 (cyan) and EMA 21 (coral) moving averages
+- **Position Levels**: Entry, Stop Loss, Take Profit 1 & 2 levels with labels
+- **Risk/Reward Zones**: Visual shaded areas showing risk (red) and reward (green) zones
+- **FVG Zones**: Fair Value Gaps highlighted with semi-transparent overlays
+- **Order Blocks**: OB High/Low levels marked with dotted lines
+- **Volume Bars**: Color-coded volume histogram (green/red) below price chart
+- **Current Price**: Yellow horizontal line with price label
+- **Direction Indicator**: Large arrow (▲ for LONG, ▼ for SHORT) at top-left
+- **TradingView Links**: Direct links to TradingView charts for each signal
+
+### Chart Styling
+- **Modern Theme**: Light background with black borders and enhanced readability
+- **High Resolution**: 200 DPI output for crisp chart images
+- **Responsive Layout**: Optimized for Discord embed display
+- **Professional Appearance**: TradingView-style design with clear legends
 
 ### Customizing Signal Parameters
 
