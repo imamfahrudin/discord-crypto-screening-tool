@@ -199,80 +199,6 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         await send_error(ctx_or_message, f"⚠️ Error generating signal. Cek log terminal: `{e}`")
         print(tb)
 
-# Create embed (insight hidden)
-def create_signal_embed(plan_string: str, symbol: str, timeframe: str):
-    data = {}
-    try:
-        lines = plan_string.split('\n')
-        for line in lines:
-            if ':' in line:
-                key, value = line.split(':', 1)
-                data[key.strip()] = value.strip().replace('**', '')
-
-        insight_match = re.search(r'INSIGHT_START\n(.*?)\nINSIGHT_END', plan_string, re.DOTALL)
-        data['INSIGHT'] = insight_match.group(1).strip() if insight_match else ''
-    except Exception as e:
-        return discord.Embed(title="❌ Parsing Error", description=f"Gagal memproses sinyal: {e}", color=0xFF0000)
-
-    s_upper = data.get('DIRECTION', 'NETRAL')
-    current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
-
-    # color & emoji
-    if s_upper == "LONG":
-        color = 0x00FF88; emoji = "🟢"
-    elif s_upper == "SHORT":
-        color = 0xFF5555; emoji = "🔴"
-    else:
-        color = 0xFFD700; emoji = "🟡"
-
-    interval_map = {
-        "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30",
-        "1h":"60","2h":"120","4h":"240","6h":"360",
-        "1d":"1D","1w":"1W","1M":"1M"
-    }
-    interval = interval_map.get(timeframe.lower(), "1D")
-    tv_url = f"https://www.tradingview.com/chart/?symbol={data.get('EXCHANGE','BYBIT')}:{symbol}&interval={interval}"
-
-    # NETRAL
-    if s_upper == "NETRAL":
-        title = f"{emoji} {symbol} — {timeframe.upper()} NETRAL"
-        description = (
-            f"**Analisis:** Pasar konsolidasi atau kriteria FVG/Momentum tidak terpenuhi.\n"
-            f"🕒 **Timeframe:** `{timeframe.upper()}`\n"
-            f"🧭 **Time:** `{current_time}`\n\n"
-            f"🔗 [📈 Open Chart on TradingView]({tv_url})\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
-    else:
-        # safe format
-        tp1_fmt = format_price_dynamic(safe_float(data.get('TP1'))) if safe_float(data.get('TP1')) is not None else 'N/A'
-        tp2_fmt = format_price_dynamic(safe_float(data.get('TP2'))) if safe_float(data.get('TP2')) is not None else 'N/A'
-        rr_fmt = f"{safe_float(data.get('RR')):.2f}R" if safe_float(data.get('RR')) is not None else "N/A"
-        confidence = data.get('CONFIDENCE', '')
-        entry_fmt = format_price_dynamic(safe_float(data.get('ENTRY'))) if safe_float(data.get('ENTRY')) is not None else '-'
-        sl_fmt = format_price_dynamic(safe_float(data.get('SL'))) if safe_float(data.get('SL')) is not None else '-'
-
-        title = f"{BOT_TITLE_PREFIX} {s_upper} {symbol}"
-        description = (
-            f"📊 **PAIR:** `{symbol}`\n"
-            f"🕒 **TIMEFRAME:** `{timeframe.upper()}`\n"
-            f"🧭 **Time:** `{current_time}`\n\n"
-            f"📈 **ENTRY:** `{entry_fmt}`\n"
-            f"🛑 **STOP LOSS:** `{sl_fmt}`\n"
-            f"🎯 **TAKE PROFIT (Target Likuiditas):**\n"
-            f"> TP Awal (1.5R) → `{tp1_fmt}`\n"
-            f"**🏆 TP Final →** `{tp2_fmt}` **({rr_fmt})**\n\n"
-            f"💡 **CONFIDENCE:** {confidence}\n\n"
-            # Insight intentionally hidden (for internal use only)
-            f"🔗 [📈 Open Chart on TradingView]({tv_url})\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        )
-
-    embed = discord.Embed(title=title, description=description, color=color)
-    last_price_fmt = format_price_dynamic(safe_float(data.get('LAST_PRICE'))) if safe_float(data.get('LAST_PRICE')) is not None else '-'
-    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
-    return embed
-
 def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str):
     """Create embed from dict data (new format)"""
     current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
@@ -356,53 +282,70 @@ async def signal_command(ctx, symbol: str, timeframe: str, direction: str = None
 async def slash_help(interaction: discord.Interaction):
     """Tampilkan perintah yang tersedia dan informasi penggunaan"""
     embed = discord.Embed(
-        title="🤖📈 Crypto Signal Bot - Perintah",
-        description="Bot sinyal trading cryptocurrency dengan analisis teknikal RSI dan EMA",
-        color=0x00ff00
+        title="🤖💎 **CRYPTO SIGNAL BOT** — Panduan Lengkap",
+        description="🚀 **Bot Sinyal Trading Cryptocurrency** dengan analisis teknikal canggih menggunakan indikator RSI dan EMA untuk membantu trading Anda!",
+        color=0x00ff88
     )
 
     embed.add_field(
         name="📊 **Perintah Sinyal Trading**",
         value=(
-            "**/signal** - Generate sinyal trading (dengan dropdown untuk timeframe & arah)\n"
-            "**!signal {coin} {timeframe}** - Cek sinyal umum (long dan short)\n"
-            "**!signal {coin} {timeframe} {long/short}** - Cek sinyal spesifik arah\n"
-            "**$ {coin} {timeframe}** - Perintah cepat untuk sinyal umum\n"
-            "**$ {coin} {timeframe} {long/short}** - Perintah cepat untuk sinyal spesifik"
+            "🔹 **`/signal`** - Generate sinyal trading interaktif dengan dropdown\n"
+            "🔹 **`!signal {coin} {timeframe}`** - Cek sinyal umum (long/short)\n"
+            "🔹 **`!signal {coin} {timeframe} {long/short}`** - Cek sinyal spesifik arah\n"
+            "🔹 **`$ {coin} {timeframe}`** - Perintah cepat untuk sinyal umum\n"
+            "🔹 **`$ {coin} {timeframe} {long/short}`** - Perintah cepat spesifik"
         ),
         inline=False
     )
 
     embed.add_field(
         name="⏰ **Timeframe yang Didukung**",
-        value="1m, 3m, 5m, 15m, 30m, 1h, 4h, 1d",
-        inline=False
+        value="`1m` `3m` `5m` `15m` `30m` `1h` `4h` `1d`",
+        inline=True
     )
 
     embed.add_field(
-        name="💡 **Contoh Penggunaan**",
+        name="🎯 **Contoh Penggunaan**",
         value=(
-            "**!signal BTC 1h** - Cek sinyal BTC/USDT 1 jam\n"
-            "**!signal ETH 4h long** - Cek sinyal long ETH/USDT 4 jam\n"
-            "**!signal SOL 1d short** - Cek sinyal short SOL/USDT harian\n"
-            "**$BTC 1h** - Perintah cepat untuk sinyal BTC 1 jam\n"
-            "**$ETH 4h long** - Perintah cepat untuk sinyal long ETH 4 jam\n"
-            "**/signal** - Gunakan perintah slash interaktif"
+            "• `!signal BTC 1h` → Sinyal BTC/USDT 1 jam\n"
+            "• `!signal ETH 4h long` → Long ETH/USDT 4 jam\n"
+            "• `!signal SOL 1d short` → Short SOL/USDT harian\n"
+            "• `$BTC 1h` → Cepat BTC 1 jam\n"
+            "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
+            "• `/signal` → Slash command interaktif"
         ),
-        inline=False
+        inline=True
     )
 
     embed.add_field(
         name="📋 **Parameter yang Didukung**",
         value=(
-            "**COIN**: Simbol cryptocurrency (BTC, ETH, SOL, dll.)\n"
-            "**TIMEFRAME**: Periode analisis (lihat di atas)\n"
-            "**DIRECTION**: Auto (default), Long, atau Short"
+            "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
+            "**⏱️ TIMEFRAME**: Lihat kolom sebelah kiri\n"
+            "**📈 DIRECTION**: Auto (default), Long, Short"
         ),
         inline=False
     )
 
-    embed.set_footer(text="Data dari Bybit • Menggunakan indikator RSI & EMA • Bot untuk tujuan edukasi")
+    embed.add_field(
+        name="💡 **Tips Penggunaan**",
+        value=(
+            "• Gunakan timeframe yang sesuai dengan gaya trading Anda\n"
+            "• Signal auto akan memilih arah terbaik berdasarkan analisis\n"
+            "• Chart akan dilampirkan otomatis dengan setup lengkap\n"
+            "• Bot menggunakan data real-time dari Bybit"
+        ),
+        inline=False
+    )
+    
+    embed.set_footer(
+        text="📊 Data dari Bybit Futures • 🔍 Menggunakan RSI & EMA • 🎓 Untuk tujuan edukasi"
+    )
+    
+    embed.set_author(
+        name="Crypto Signal Bot"
+    )
 
     try:
         await interaction.response.send_message(embed=embed)
