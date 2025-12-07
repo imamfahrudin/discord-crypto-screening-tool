@@ -241,6 +241,21 @@ async def send_error(ctx_or_message, message: str):
     else:  # It's a discord.Message
         await ctx_or_message.channel.send(message)
 
+async def get_available_coins():
+    """Fetch and return a sorted list of unique base coins from Bybit pairs."""
+    def fetch_coins():
+        pairs = get_all_pairs(force_refresh=False)  # Use cache if available
+        coins = set()
+        for pair in pairs:
+            # Assuming pairs are in BASEQUOTE format (e.g., BTCUSDT -> BTC)
+            base = pair.replace('USDT', '').replace('USDC', '').replace('BUSD', '')  # Handle common quotes
+            if base and base != pair:  # Avoid empty or unchanged pairs
+                coins.add(base.upper())
+        return sorted(coins)
+    
+    # Run in executor since get_all_pairs might be blocking
+    return await bot.loop.run_in_executor(None, fetch_coins)
+
 # Shared signal generation logic
 async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None):
     print(f"{LOG_PREFIX} 🚀 Starting signal generation for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
@@ -454,6 +469,39 @@ async def signal_command(ctx, *args):
     
     await generate_signal_response(ctx, symbol, timeframe, direction, "bybit", ema_short, ema_long)
 
+@bot.command(name="coinlist")
+async def coinlist_command(ctx):
+    """
+    List all available coins for trading signals.
+    Usage: !coinlist
+    """
+    print(f"{LOG_PREFIX} 📋 Coinlist command triggered by {ctx.author}")
+    
+    try:
+        coins = await get_available_coins()
+        if not coins:
+            await send_error(ctx, "⚠️ No coins available at the moment. Try again later.")
+            return
+        
+        # Format the list (Discord embed description has a 4096 char limit, so chunk if needed)
+        coin_list = ", ".join(coins)
+        if len(coin_list) > 4000:  # Leave some buffer
+            coin_list = coin_list[:4000] + "... (truncated)"
+        
+        embed = discord.Embed(
+            title="🪙 Available Coins for Trading Signals",
+            description=f"Here are the supported coins (base currencies from Bybit pairs):\n\n{coin_list}",
+            color=0x00FF88
+        )
+        embed.set_footer(text=f"{BOT_FOOTER_NAME} • Total coins: {len(coins)}")
+        
+        await send_response(ctx, embed=embed)
+        print(f"{LOG_PREFIX} ✅ Coinlist sent successfully ({len(coins)} coins)")
+    
+    except Exception as e:
+        print(f"{LOG_PREFIX} ❌ Coinlist command error: {e}")
+        await send_error(ctx, f"⚠️ Error fetching coin list: {e}")
+
 # ============================
 # Slash Commands
 # ============================
@@ -478,7 +526,9 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
             "🔹 **`$ {coin} {timeframe}`** - Perintah cepat untuk sinyal umum\n"
             "🔹 **`$ {coin} {timeframe} {long/short}`** - Perintah cepat spesifik\n"
-            "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin"
+            "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
+            "🔹 **`!coinlist`** - Lihat daftar coin yang tersedia\n"
+            "🔹 **`/coinlist`** - Slash command untuk daftar coin"
         ),
         inline=False
     )
@@ -603,6 +653,37 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
     mock_ctx = MockInteraction(interaction)
     await generate_signal_response(mock_ctx, symbol, timeframe, forced, "bybit", ema_short, ema_long)
     print(f"{LOG_PREFIX} ✅ Slash signal command completed")
+
+@tree.command(name="coinlist", description="List all available coins for trading signals")
+async def slash_coinlist(interaction: discord.Interaction):
+    print(f"{LOG_PREFIX} 📋 Slash coinlist command triggered by {interaction.user}")
+    
+    await interaction.response.defer()  # Defer for potential delay
+    
+    try:
+        coins = await get_available_coins()
+        if not coins:
+            await interaction.followup.send("⚠️ No coins available at the moment. Try again later.")
+            return
+        
+        # Format the list (same as bot command)
+        coin_list = ", ".join(coins)
+        if len(coin_list) > 4000:
+            coin_list = coin_list[:4000] + "... (truncated)"
+        
+        embed = discord.Embed(
+            title="🪙 Available Coins for Trading Signals",
+            description=f"Here are the supported coins (base currencies from Bybit pairs):\n\n{coin_list}",
+            color=0x00FF88
+        )
+        embed.set_footer(text=f"{BOT_FOOTER_NAME} • Total coins: {len(coins)}")
+        
+        await interaction.followup.send(embed=embed)
+        print(f"{LOG_PREFIX} ✅ Slash coinlist sent successfully ({len(coins)} coins)")
+    
+    except Exception as e:
+        print(f"{LOG_PREFIX} ❌ Slash coinlist command error: {e}")
+        await interaction.followup.send(f"⚠️ Error fetching coin list: {e}")
 
 # ============================
 # Start bot
