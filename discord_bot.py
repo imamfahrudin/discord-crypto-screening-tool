@@ -7,7 +7,7 @@ from datetime import datetime
 import re
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
-from bybit_data import normalize_symbol, get_all_pairs
+from bybit_data import normalize_symbol, pair_exists
 from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
 from chart_generator import generate_chart_with_setup, generate_neutral_chart
@@ -227,9 +227,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
 
     def run_blocking_calls():
         symbol_norm = normalize_symbol(symbol)
-        if symbol_norm not in get_all_pairs():
-            get_all_pairs(force_refresh=True)
-        if symbol_norm not in get_all_pairs():
+        if not pair_exists(symbol_norm):
             return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
         # Get dict data for chart generation
         return generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)

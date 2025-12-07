@@ -74,6 +74,10 @@ def normalize_symbol(symbol: str) -> str:
 def pair_exists(symbol: str) -> bool:
     symbol = normalize_symbol(symbol)
     pairs = get_all_pairs()
+    if symbol in pairs:
+        return True
+    # Not found in cache, force refresh from API
+    pairs = get_all_pairs(force_refresh=True)
     return symbol in pairs
 
 def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
