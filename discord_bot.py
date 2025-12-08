@@ -77,9 +77,9 @@ async def on_message(message):
 
         # Parse the content: symbol [timeframe] [direction] [ema_short] [ema_long] (flexible order)
         parts = content.split()
-        if len(parts) < 2:
+        if len(parts) < 1:
             print(f"{LOG_PREFIX} ⚠️ Insufficient parts in $ command: {len(parts)}")
-            await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nCoin harus di depan, sisanya bebas urutan.\nContoh: `$BTC 1h` atau `$ETH 4h long ema20 ema50` atau `$SOL short ema9 ema21 1d`")
+            await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nCoin harus di depan, timeframe default 1h jika tidak ditentukan.\nContoh: `$BTC` atau `$ETH 4h long ema20 ema50`")
             return
 
         symbol = parts[0].upper()
@@ -132,11 +132,10 @@ async def on_message(message):
         
         print(f"{LOG_PREFIX} ✅ Parsed parameters - Timeframe: {timeframe}, Direction: {direction}, EMAs: {emas}")
         
-        # Validate parsed data
+        # Validate parsed data - set default timeframe to 1h if not specified
         if timeframe is None:
-            print(f"{LOG_PREFIX} ⚠️ No timeframe specified")
-            await send_error(message, "⚠️ Timeframe wajib ditentukan.")
-            return
+            timeframe = "1h"
+            print(f"{LOG_PREFIX} 📊 Using default timeframe: {timeframe}")
         
         if len(emas) == 2:
             ema_short, ema_long = emas
@@ -461,8 +460,8 @@ async def signal_command(ctx, *args):
       !signal BTC short ema20 ema50 1h
       !signal ETH ema9 ema21 4h long
     """
-    if len(args) < 2:
-        await send_error(ctx, "⚠️ Format: `!signal SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nSymbol wajib, sisanya bebas urutan.\nContoh: `!signal BTC 1h` atau `!signal ETH 4h long ema20 ema50` atau `!signal SOL short ema9 ema21 1d`")
+    if len(args) < 1:
+        await send_error(ctx, "⚠️ Format: `!signal SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long]`\nSymbol wajib, timeframe default 1h jika tidak ditentukan.\nContoh: `!signal BTC` atau `!signal ETH 4h long ema20 ema50`")
         return
 
     symbol = args[0].upper()
@@ -508,10 +507,10 @@ async def signal_command(ctx, *args):
             await send_error(ctx, f"⚠️ Parameter tidak valid: `{part}`. Harus timeframe, direction, EMA, atau 'detail'.")
             return
     
-    # Validate parsed data
+    # Validate parsed data - set default timeframe to 1h if not specified
     if timeframe is None:
-        await send_error(ctx, "⚠️ Timeframe wajib ditentukan.")
-        return
+        timeframe = "1h"
+        print(f"{LOG_PREFIX} 📊 Using default timeframe: {timeframe}")
     
     if len(emas) == 2:
         ema_short, ema_long = emas
@@ -582,15 +581,15 @@ async def slash_help(interaction: discord.Interaction):
         name="📊 **Perintah Sinyal Trading**",
         value=(
             "🔹 **`/signal`** - Generate sinyal trading interaktif dengan dropdown (support custom EMA)\n"
-            "🔹 **`!signal {coin} {timeframe}`** - Cek sinyal umum (long/short)\n"
-            "🔹 **`!signal {coin} {timeframe} {long/short}`** - Cek sinyal spesifik arah\n"
-            "🔹 **`!signal {coin} {timeframe} {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
-            "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
-            "🔹 **`!signal {coin} {timeframe} detail`** - Tampilkan analisis detail lengkap\n"
-            "🔹 **`$ {coin} {timeframe}`** - Perintah cepat untuk sinyal umum\n"
-            "🔹 **`$ {coin} {timeframe} {long/short}`** - Perintah cepat spesifik\n"
-            "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} {timeframe}`** - Urutan bebas setelah coin\n"
-            "🔹 **`$ {coin} {timeframe} detail`** - Perintah cepat dengan analisis detail\n"
+            "🔹 **`!signal {coin} [timeframe]`** - Cek sinyal (timeframe default 1h)\n"
+            "🔹 **`!signal {coin} [timeframe] {long/short}`** - Cek sinyal spesifik arah\n"
+            "🔹 **`!signal {coin} [timeframe] {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
+            "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
+            "🔹 **`!signal {coin} [timeframe] detail`** - Tampilkan analisis detail lengkap\n"
+            "🔹 **`$ {coin} [timeframe]`** - Perintah cepat (timeframe default 1h)\n"
+            "🔹 **`$ {coin} [timeframe] {long/short}`** - Perintah cepat spesifik\n"
+            "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
+            "🔹 **`$ {coin} [timeframe] detail`** - Perintah cepat dengan analisis detail\n"
             "🔹 **`!coinlist`** - Lihat daftar coin yang tersedia\n"
             "🔹 **`/coinlist`** - Slash command untuk daftar coin"
         ),
@@ -606,12 +605,14 @@ async def slash_help(interaction: discord.Interaction):
     embed.add_field(
         name="🎯 **Contoh Penggunaan**",
         value=(
+            "• `!signal BTC` → Sinyal BTC/USDT 1h (default)\n"
             "• `!signal BTC 1h` → Sinyal BTC/USDT 1 jam\n"
             "• `!signal ETH 4h long` → Long ETH/USDT 4 jam\n"
             "• `!signal SOL 1d short` → Short SOL/USDT harian\n"
             "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
             "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
+            "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
@@ -625,7 +626,7 @@ async def slash_help(interaction: discord.Interaction):
         name="📋 **Parameter yang Didukung**",
         value=(
             "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
-            "**⏱️ TIMEFRAME**: Lihat kolom sebelah kiri\n"
+            "**⏱️ TIMEFRAME**: Optional, default 1h. Lihat kolom sebelah kiri untuk pilihan\n"
             "**📈 DIRECTION**: Auto (default), Long, Short\n"
             "**📊 DETAIL**: Tambahkan 'detail' untuk analisis lengkap"
         ),
