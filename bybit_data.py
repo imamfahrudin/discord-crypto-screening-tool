@@ -44,25 +44,58 @@ def get_all_pairs(force_refresh=False):
     pairs = []
     for url in BYBIT_URLS:
         print(f"{LOG_PREFIX} 🔗 Trying URL: {url}")
-        try:
-            resp = requests.get(url, timeout=8)
-            data = resp.json()
-            result = data.get('result', {}) or {}
-            symbol_list = result.get('list', []) or []
-            for s in symbol_list:
-                if isinstance(s, dict):
-                    sym = s.get('symbol','')
-                    status = s.get('status','')
-                    if sym.endswith('USDT'):
-                        if status.lower() == 'trading':
+        cursor = ""  # Start with empty cursor for first page
+        page_count = 0
+
+        while True:
+            page_count += 1
+            params = {
+                'category': 'linear',
+                'status': 'Trading',
+                'limit': 1000  # Maximum allowed per page
+            }
+            if cursor:
+                params['cursor'] = cursor
+
+            try:
+                resp = requests.get(url, params=params, timeout=8)
+                data = resp.json()
+
+                if data.get('retCode') != 0:
+                    print(f"{LOG_PREFIX} ⚠️ API error from {url}: {data.get('retMsg', 'Unknown error')}")
+                    break
+
+                result = data.get('result', {}) or {}
+                symbol_list = result.get('list', []) or []
+
+                if not symbol_list:
+                    print(f"{LOG_PREFIX} 📄 No more symbols on page {page_count} from {url}")
+                    break
+
+                page_pairs = 0
+                for s in symbol_list:
+                    if isinstance(s, dict):
+                        sym = s.get('symbol','')
+                        status = s.get('status','')
+                        if sym.endswith('USDT') and status.lower() == 'trading':
                             if sym not in pairs:
                                 pairs.append(sym)
-                        else:
-                            print(f"{LOG_PREFIX} ⚠️ Skipping {sym} with status: {status}")  # Debug non-trading pairs
-        except Exception as e:
-            print(f"{LOG_PREFIX} ❌ Error fetching from {url}: {e}")
-            time.sleep(0.5)
-            continue
+                                page_pairs += 1
+
+                print(f"{LOG_PREFIX} 📄 Page {page_count}: Added {page_pairs} new USDT pairs from {url}")
+
+                # Check for next page
+                next_cursor = result.get('nextPageCursor')
+                if not next_cursor:
+                    print(f"{LOG_PREFIX} 📄 No more pages from {url}")
+                    break
+
+                cursor = next_cursor
+                time.sleep(0.1)  # Small delay between pages to be respectful
+
+            except Exception as e:
+                print(f"{LOG_PREFIX} ❌ Error fetching page {page_count} from {url}: {e}")
+                break
     if pairs:
         _PAIRS_CACHE = pairs
         print(f"{LOG_PREFIX} 📊 Fetched {len(pairs)} trading pairs from Bybit API")
