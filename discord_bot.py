@@ -403,6 +403,10 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
         embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        # Add EMA periods field for neutral signals too
+        ema_short = data.get('ema_short', 13)
+        ema_long = data.get('ema_long', 21)
+        embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
         embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
@@ -420,6 +424,11 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
         embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        
+        # Add EMA periods field
+        ema_short = data.get('ema_short', 13)
+        ema_long = data.get('ema_long', 21)
+        embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
         
         embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
         embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)

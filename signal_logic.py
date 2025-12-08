@@ -203,7 +203,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
         print(f"{LOG_PREFIX} ❌ Insufficient OHLC data: {len(df) if df is not None else 0} candles")
         raise ValueError("Failed to fetch sufficient OHLC data (need min 50 candles)")
 
-    print(f"{LOG_PREFIX} 📈 Calculating technical indicators")
+    print(f"{LOG_PREFIX} 📈 Calculating technical indicators with EMA periods: {ema_short}/{ema_long}")
     # Indicators
     df['ema13'] = ta.trend.EMAIndicator(df['close'], window=ema_short).ema_indicator()
     df['ema21'] = ta.trend.EMAIndicator(df['close'], window=ema_long).ema_indicator()
@@ -256,7 +256,7 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     elif ema13 < ema21 and rsi_val > 30:
         direction = 'short'
 
-    print(f"{LOG_PREFIX} 📊 Auto-determined direction: {direction} (EMA13: {ema13:.6f}, EMA21: {ema21:.6f}, RSI: {rsi_val:.2f})")
+    print(f"{LOG_PREFIX} 📊 Auto-determined direction: {direction} (EMA{ema_short}: {ema13:.6f}, EMA{ema_long}: {ema21:.6f}, RSI: {rsi_val:.2f})")
 
     # Apply forced direction override if provided and valid
     if forced_direction and forced_direction.lower() in ('long', 'short'):
