@@ -3,11 +3,14 @@ import json
 import os
 import logging
 import websockets
+import random
+from datetime import datetime
 
 LOG_PREFIX = "[ws_prices]"
 
 PRICES = {}
 SHOULD_RUN = True
+LAST_MESSAGE_TIME = None
 
 async def _subscribe(ws, symbols):
     # Subscribe format may vary by Bybit region. This attempts a generic tickers subscribe.
@@ -24,26 +27,48 @@ async def _subscribe(ws, symbols):
     await ws.send(json.dumps({"op":"subscribe","args": args}))
 
 async def _listen(url, symbols):
+    global LAST_MESSAGE_TIME
     backoff = 1
+    max_backoff = 120  # Max 2 minutes
     print(f"{LOG_PREFIX} 🚀 Starting WebSocket listener for {url}")
     while SHOULD_RUN:
         try:
-            print(f"{LOG_PREFIX} 🔌 Attempting WebSocket connection to {url} (backoff: {backoff}s)")
-            async with websockets.connect(url, ping_interval=20) as ws:
+            if backoff > 1:
+                print(f"{LOG_PREFIX} 🔌 Attempting WebSocket connection to {url} (backoff: {backoff:.1f}s)")
+            else:
+                print(f"{LOG_PREFIX} 🔌 Attempting WebSocket connection to {url}")
+            
+            # Increased timeouts for slow connections
+            async with websockets.connect(
+                url, 
+                ping_interval=30,  # Increased from 20s
+                ping_timeout=60,   # Added explicit ping timeout
+                close_timeout=10,  # How long to wait for clean close
+                max_size=10**7     # 10MB message size limit
+            ) as ws:
                 logging.info(f"WS connected to {url}")
                 print(f"{LOG_PREFIX} ✅ WebSocket connected successfully")
+                LAST_MESSAGE_TIME = datetime.now()
                 await _subscribe(ws, symbols)
-                backoff = 1
+                backoff = 1  # Reset backoff on successful connection
+                
+                # Message receive loop with timeout monitoring
                 async for message in ws:
+                    LAST_MESSAGE_TIME = datetime.now()
+                    
                     try:
                         data = json.loads(message)
                     except Exception as e:
                         print(f"{LOG_PREFIX} ❌ Failed to parse message: {e}")
                         continue
                     
+                    # Skip heartbeat/pong messages
+                    if data.get('op') in ['pong', 'ping']:
+                        continue
+                    
                     # Typical Bybit v5 ticker payload:
                     # {'topic':'tickers.BTCUSDT','data':[{'symbol':'BTCUSDT','lastPrice':'...'}]}
-                    topic = data.get('topic') or data.get('arg', {}).get('channel')
+                    topic = data.get('topic') or (data.get('arg') or {}).get('channel')
                     payload = data.get('data') or data.get('params') or data.get('tick')
                     sym = None
                     if isinstance(topic, str):
@@ -74,13 +99,33 @@ async def _listen(url, symbols):
                             print(f"{LOG_PREFIX} ⚠️ Received price {price} but no symbol identified from topic: {topic}")
                     except Exception as e:
                         print(f"{LOG_PREFIX} ❌ Error processing price update: {e}")
+        except asyncio.TimeoutError:
+            print(f"{LOG_PREFIX} ⏱️ Connection timeout - slow network detected")
+            logging.warning("WS timeout - slow network")
+        except websockets.exceptions.ConnectionClosed as e:
+            print(f"{LOG_PREFIX} 🔌 Connection closed: code={e.code}, reason={e.reason}")
+            logging.warning(f"WS closed: {e.code} {e.reason}")
         except Exception as e:
             print(f"{LOG_PREFIX} ❌ WebSocket error: {e}")
             logging.warning(f"WS error: {e}")
+        
         if SHOULD_RUN:
-            print(f"{LOG_PREFIX} ⏳ Reconnecting in {backoff} seconds...")
-            await asyncio.sleep(backoff)
-            backoff = min(backoff * 2, 60)
+            # Calculate time since last message for adaptive backoff
+            if LAST_MESSAGE_TIME:
+                silence_duration = (datetime.now() - LAST_MESSAGE_TIME).total_seconds()
+                if silence_duration > 120:  # No messages for 2 minutes
+                    print(f"{LOG_PREFIX} 🔕 Long silence detected ({silence_duration:.0f}s) - using longer backoff")
+                    backoff = min(backoff * 2, max_backoff)
+                else:
+                    backoff = min(backoff * 1.5, max_backoff)
+            else:
+                backoff = min(backoff * 2, max_backoff)
+            
+            # Add jitter to backoff
+            jitter = random.uniform(0, min(backoff * 0.3, 10))
+            total_wait = backoff + jitter
+            print(f"{LOG_PREFIX} ⏳ Reconnecting in {total_wait:.1f} seconds...")
+            await asyncio.sleep(total_wait)
 
 def start_ws_in_background(url=None, symbols=None):
     url = url or os.environ.get('BYBIT_WS_URL') or 'wss://stream.bybit.com/v5/public/linear'

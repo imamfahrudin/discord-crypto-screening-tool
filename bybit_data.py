@@ -1,10 +1,36 @@
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import pandas as pd
 import time
 import os
 import json
 
 LOG_PREFIX = "[bybit_data]"
+
+# Create a session with retry strategy and connection pooling
+def _create_session():
+    session = requests.Session()
+    retry_strategy = Retry(
+        total=5,  # Total retry attempts
+        backoff_factor=1,  # Wait 1s, 2s, 4s, 8s, 16s between retries
+        status_forcelist=[429, 500, 502, 503, 504],  # Retry on these status codes
+        allowed_methods=["GET"],  # Only retry GET requests
+        raise_on_status=False
+    )
+    adapter = HTTPAdapter(
+        max_retries=retry_strategy,
+        pool_connections=10,
+        pool_maxsize=20,
+        pool_block=False
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    # Set reasonable timeouts
+    session.timeout = (10, 30)  # (connect timeout, read timeout)
+    return session
+
+_SESSION = _create_session()
 
 _PAIRS_CACHE = None
 CACHE_FILE = os.path.join(os.path.dirname(__file__), 'pairs_cache.json')
@@ -58,7 +84,8 @@ def get_all_pairs(force_refresh=False):
                 params['cursor'] = cursor
 
             try:
-                resp = requests.get(url, params=params, timeout=8)
+                resp = _SESSION.get(url, params=params, timeout=(10, 30))  # 10s connect, 30s read
+                resp.raise_for_status()  # Raise exception for bad status codes
                 data = resp.json()
 
                 if data.get('retCode') != 0:
@@ -127,12 +154,23 @@ def pair_exists(symbol: str) -> bool:
     if symbol in pairs:
         print(f"{LOG_PREFIX} ✅ {symbol} found in cache")
         return True
-    # Not found in cache, force refresh from API
+    # Not found in cache, force refresh from API with retry
     print(f"{LOG_PREFIX} 🔄 Refreshing pairs cache for {symbol}...")
-    pairs = get_all_pairs(force_refresh=True)
-    found = symbol in pairs
-    print(f"{LOG_PREFIX} ✅ Cache refreshed. {symbol} found: {found}")
-    return found
+    max_attempts = 3
+    for attempt in range(max_attempts):
+        try:
+            pairs = get_all_pairs(force_refresh=True)
+            found = symbol in pairs
+            print(f"{LOG_PREFIX} ✅ Cache refreshed. {symbol} found: {found}")
+            return found
+        except Exception as e:
+            if attempt < max_attempts - 1:
+                wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
+                print(f"{LOG_PREFIX} ⚠️ Refresh attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"{LOG_PREFIX} ❌ All refresh attempts failed for {symbol}")
+                return False
 
 def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     symbol = normalize_symbol(symbol)
@@ -155,26 +193,42 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         raise ValueError(f"Pair {symbol} not available in Bybit Futures (linear).") 
     for domain in ['api.bybit.com','api.bybitglobal.com']:
         print(f"{LOG_PREFIX} 🔗 Trying domain: {domain}")
-        try:
-            url = f"https://{domain}/v5/market/kline?category=linear&symbol={symbol}&interval={interval}&limit={limit}"
-            resp = requests.get(url, timeout=8)
-            data = resp.json()
-            result = data.get('result', {}) or {}
-            ohlc_list = result.get('list', []) or []
-            if isinstance(ohlc_list, list) and len(ohlc_list) > 0:
-                df = pd.DataFrame(ohlc_list, columns=['open_time','open','high','low','close','volume','turnover'])
-                df = df.astype({'open':'float','high':'float','low':'float','close':'float','volume':'float'})
-                df = df.iloc[::-1].reset_index(drop=True)
-                try:
-                    df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
-                except Exception as e:
-                    print(f"{LOG_PREFIX} ⚠️ Error converting timestamps: {e}")
-                print(f"{LOG_PREFIX} ✅ Successfully fetched {len(df)} candles for {symbol}")
-                return df
-        except Exception as e:
-            print(f"{LOG_PREFIX} ❌ Error fetching from {domain}: {e}")
-            time.sleep(0.5)
-            continue
+        retries = 3
+        for attempt in range(retries):
+            try:
+                url = f"https://{domain}/v5/market/kline?category=linear&symbol={symbol}&interval={interval}&limit={limit}"
+                resp = _SESSION.get(url, timeout=(15, 45))  # Longer timeout for OHLC data
+                resp.raise_for_status()
+                data = resp.json()
+                result = data.get('result', {}) or {}
+                ohlc_list = result.get('list', []) or []
+                if isinstance(ohlc_list, list) and len(ohlc_list) > 0:
+                    df = pd.DataFrame(ohlc_list, columns=['open_time','open','high','low','close','volume','turnover'])
+                    df = df.astype({'open':'float','high':'float','low':'float','close':'float','volume':'float'})
+                    df = df.iloc[::-1].reset_index(drop=True)
+                    try:
+                        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+                    except Exception as e:
+                        print(f"{LOG_PREFIX} ⚠️ Error converting timestamps: {e}")
+                    print(f"{LOG_PREFIX} ✅ Successfully fetched {len(df)} candles for {symbol}")
+                    return df
+            except requests.exceptions.Timeout as e:
+                if attempt < retries - 1:
+                    wait_time = (attempt + 1) * 2
+                    print(f"{LOG_PREFIX} ⏱️ Timeout on {domain} (attempt {attempt + 1}/{retries}). Retrying in {wait_time}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"{LOG_PREFIX} ❌ All retry attempts exhausted for {domain}: {e}")
+                    break
+            except requests.exceptions.RequestException as e:
+                print(f"{LOG_PREFIX} ❌ Request error on {domain}: {e}")
+                time.sleep(1)
+                break
+            except Exception as e:
+                print(f"{LOG_PREFIX} ❌ Unexpected error on {domain}: {e}")
+                time.sleep(0.5)
+                break
     raise ValueError(f"No candle data for {symbol} {timeframe}")
 
 def get_last_price_from_rest(symbol: str):
@@ -182,24 +236,45 @@ def get_last_price_from_rest(symbol: str):
     print(f"{LOG_PREFIX} 💰 Fetching last price for {symbol}")
     for domain in ['api.bybit.com','api.bybitglobal.com']:
         print(f"{LOG_PREFIX} 🔗 Trying domain: {domain}")
-        try:
-            url = f"https://{domain}/v5/market/tickers?category=linear&symbol={symbol}"
-            resp = requests.get(url, timeout=5).json()
-            if resp.get('retCode') != 0:
-                print(f"{LOG_PREFIX} ⚠️ Non-zero retCode from {domain}: {resp.get('retCode')}")
-                continue
-            result = resp.get('result', {}) or {}
-            ticker_list = result.get('list', []) or []
-            if ticker_list:
-                tick = ticker_list[0]
-                last_price = float(tick.get('lastPrice', tick.get('price', 0) or 0))
-                mark_price = float(tick.get('markPrice', last_price))
-                final = mark_price if abs(mark_price - last_price) < 5 else last_price
-                print(f"{LOG_PREFIX} ✅ Got price: {final} for {symbol}")
-                return float(final)
-        except Exception as e:
-            print(f"{LOG_PREFIX} ❌ Error fetching from {domain}: {e}")
-            time.sleep(0.2)
-            continue
+        retries = 3
+        for attempt in range(retries):
+            try:
+                url = f"https://{domain}/v5/market/tickers?category=linear&symbol={symbol}"
+                resp = _SESSION.get(url, timeout=(8, 15))  # 8s connect, 15s read
+                resp.raise_for_status()
+                data = resp.json()
+                if data.get('retCode') != 0:
+                    print(f"{LOG_PREFIX} ⚠️ Non-zero retCode from {domain}: {data.get('retCode')}")
+                    if attempt < retries - 1:
+                        time.sleep(1)
+                        continue
+                    else:
+                        break
+                result = data.get('result', {}) or {}
+                ticker_list = result.get('list', []) or []
+                if ticker_list:
+                    tick = ticker_list[0]
+                    last_price = float(tick.get('lastPrice', tick.get('price', 0) or 0))
+                    mark_price = float(tick.get('markPrice', last_price))
+                    final = mark_price if abs(mark_price - last_price) < 5 else last_price
+                    print(f"{LOG_PREFIX} ✅ Got price: {final} for {symbol}")
+                    return float(final)
+            except requests.exceptions.Timeout as e:
+                if attempt < retries - 1:
+                    wait_time = (attempt + 1) * 1.5
+                    print(f"{LOG_PREFIX} ⏱️ Timeout on {domain} (attempt {attempt + 1}/{retries}). Retrying in {wait_time:.1f}s...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    print(f"{LOG_PREFIX} ❌ All retry attempts exhausted for {domain}")
+                    break
+            except requests.exceptions.RequestException as e:
+                print(f"{LOG_PREFIX} ❌ Request error on {domain}: {e}")
+                time.sleep(0.5)
+                break
+            except Exception as e:
+                print(f"{LOG_PREFIX} ❌ Unexpected error on {domain}: {e}")
+                time.sleep(0.3)
+                break
     print(f"{LOG_PREFIX} ❌ Failed to get price for {symbol}")
     return None
