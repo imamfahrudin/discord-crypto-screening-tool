@@ -535,6 +535,225 @@ async def signal_command(ctx, *args):
     
     await generate_signal_response(ctx, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
 
+@bot.command(name="scan")
+async def scan_command(ctx, *, args: str):
+    """
+    Scan multiple coins for the best trading signal setup.
+    Usage: !scan <coin1 coin2 ...> [ema_short] [ema_long]
+    Or: !scan <coin1,coin2,...> [ema_short] [ema_long]
+    For each coin, checks all setups and selects the one with highest confidence.
+    Maximum 5 coins per scan.
+    """
+    if not args.strip():
+        await send_error(ctx, "⚠️ Format: `!scan COIN1 COIN2 ... [ema_short] [ema_long]`\nOr: `!scan COIN1,COIN2,... [ema_short] [ema_long]`\nContoh: `!scan BTC ETH SOL` atau `!scan BTC,ETH ema20 ema50`")
+        return
+
+    parts = args.split()
+    if len(parts) < 1:
+        await send_error(ctx, "⚠️ Format: `!scan COIN1 COIN2 ... [ema_short] [ema_long]`\nOr: `!scan COIN1,COIN2,... [ema_short] [ema_long]`\nContoh: `!scan BTC ETH SOL` atau `!scan BTC,ETH ema20 ema50`")
+        return
+
+    # Flexible parsing: collect coins and EMAs
+    coins = []
+    emas = []
+
+    for part in parts:
+        part_lower = part.lower()
+        # Try to parse as EMA
+        ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
+        try:
+            ema_val = int(ema_str)
+            emas.append(ema_val)
+        except ValueError:
+            # Assume it's a coin (possibly comma-separated)
+            coins.append(part.strip().upper())
+
+    # Process coins (split by comma if needed)
+    coins_list = []
+    for coin_part in coins:
+        coins_list.extend([c.strip() for c in coin_part.split(',') if c.strip()])
+    
+    coins_final = [c for c in coins_list if c]
+    
+    if not coins_final:
+        await send_error(ctx, "⚠️ No valid coins provided.")
+        return
+    
+    # Limit to 5 coins per scan to prevent abuse
+    if len(coins_final) > 5:
+        await send_error(ctx, f"⚠️ Too many coins! Maximum 5 coins per scan. You provided {len(coins_final)} coins.")
+        return
+
+    # Validate EMAs
+    ema_short = None
+    ema_long = None
+
+    if len(emas) == 2:
+        ema_short, ema_long = emas
+    elif len(emas) == 1:
+        await send_error(ctx, "⚠️ Jika memberikan EMA, harus berpasangan (short dan long).")
+        return
+    elif len(emas) > 2:
+        await send_error(ctx, "⚠️ EMA maksimal 2 nilai (short dan long).")
+        return
+    else:
+        ema_short = 13  # Default
+        ema_long = 21   # Default
+
+    # Validation for EMAs
+    if ema_short >= ema_long:
+        await send_error(ctx, "⚠️ Short EMA must be less than long EMA.")
+        return
+    if ema_short < 5 or ema_long > 200:
+        await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
+        return
+
+    print(f"{LOG_PREFIX} 🔍 Scan command triggered by {ctx.author} for coins: {coins_final} with EMA {ema_short}/{ema_long}")
+
+    # Define all setups to check
+    setups = [
+        ("1h", "long"),    # $coin 1h long
+        ("1h", "short"),   # $coin 1h short
+        ("4h", "long"),    # $coin 4h long
+        ("4h", "short"),   # $coin 4h short
+    ]
+
+    for coin in coins_final:
+        print(f"{LOG_PREFIX} 📊 Scanning coin: {coin}")
+        
+        results = []
+        for timeframe, direction in setups:
+            setup_str = f"${coin} {timeframe}"
+            if direction:
+                setup_str += f" {direction}"
+            
+            # Append custom EMA values if not using defaults (13/21)
+            if ema_short != 13 or ema_long != 21:
+                setup_str += f" ema{ema_short} ema{ema_long}"
+            
+            def run_scan():
+                symbol_norm = normalize_symbol(coin)
+                if not pair_exists(symbol_norm):
+                    return None
+                result = generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+                return result, setup_str
+            
+            try:
+                result_tuple = await bot.loop.run_in_executor(None, run_scan)
+                if result_tuple is None:
+                    print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
+                    continue
+                result, setup_str = result_tuple
+                confidence = result.get('confidence', 0)
+                results.append((confidence, setup_str, result))
+                print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
+            except Exception as e:
+                print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
+                continue
+        
+        if not results:
+            await send_error(ctx, f"⚠️ No valid results for {coin}. Pair may not exist.")
+            continue
+        
+        # Find the best result (highest confidence)
+        best_result = max(results, key=lambda x: x[0])
+        best_confidence, best_setup, best_data = best_result
+        
+        # Extract timeframe from best setup (format: "$ COIN TIMEFRAME [DIRECTION]")
+        best_timeframe = best_setup.split()[2]
+        
+        print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
+        
+        # Generate chart for best result
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin), best_timeframe)
+        
+        # Create embed with all confidences listed
+        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results)
+        
+        # Send response
+        if chart_buf:
+            file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
+            await send_response(ctx, embed=embed, file=file)
+        else:
+            await send_response(ctx, embed=embed)
+        
+        print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
+
+def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list):
+    current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    
+    direction = data.get('direction', 'NETRAL').upper()
+    
+    # color & emoji
+    if direction == "LONG":
+        color = 0x00FF88; emoji = "🟢"
+    elif direction == "SHORT":
+        color = 0xFF5555; emoji = "🔴"
+    else:
+        color = 0xFFD700; emoji = "🟡"
+    
+    interval_map = {
+        "1m":"1","3m":"3","5m":"5","15m":"15","30m":"30",
+        "1h":"60","2h":"120","4h":"240","6h":"360",
+        "1d":"1D","1w":"1W","1M":"1M"
+    }
+    interval = interval_map.get(timeframe.lower(), "1D")
+    tv_url = f"https://www.tradingview.com/chart/?symbol={data.get('exchange','BYBIT')}:{symbol}&interval={interval}"
+    
+    embed = discord.Embed(color=color)
+    
+    if direction == "NETRAL":
+        embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL (Scanned)"
+        embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
+        
+        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
+        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
+    else:
+        entry_fmt = format_price_dynamic(data.get('entry'))
+        sl_fmt = format_price_dynamic(data.get('stop_loss'))
+        tp1_fmt = format_price_dynamic(data.get('tp1'))
+        tp2_fmt = format_price_dynamic(data.get('tp2'))
+        rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
+        confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
+        
+        embed.title = f"{BOT_TITLE_PREFIX} {direction} {symbol} (Scanned)"
+        embed.description = f"{emoji} **{direction} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from scan)"
+        
+        embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
+        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        
+        embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
+        
+        embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
+        embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)
+        embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
+        
+        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
+        embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
+        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=True)
+    
+    # Add all confidences list
+    sorted_results = sorted(all_results, key=lambda x: x[0], reverse=True)
+    confidence_items = []
+    for i, (conf, setup, _) in enumerate(sorted_results):
+        if i == 0:  # First item is the best
+            confidence_items.append(f"• {conf}% - `{setup}` ✅")
+        else:
+            confidence_items.append(f"• {conf}% - `{setup}`")
+    confidence_list = "\n".join(confidence_items)
+    embed.add_field(name="📋 All Confidences (Scanned Setups)", value=confidence_list, inline=False)
+    
+    last_price_fmt = format_price_dynamic(data.get('current_price'))
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
+    
+    # Set chart as image
+    embed.set_image(url=f"attachment://scan_chart_{symbol}_{timeframe}.png")
+    
+    return embed
+
 @bot.command(name="coinlist")
 async def coinlist_command(ctx):
     """
@@ -586,6 +805,8 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`!signal {coin} [timeframe] {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
             "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
             "🔹 **`!signal {coin} [timeframe] detail`** - Tampilkan analisis detail lengkap\n"
+            "🔹 **`!scan {coin1,coin2,...}`** - Scan multiple coins (max 5), pilih setup dengan confidence tertinggi\n"
+            "🔹 **`!scan {coin1 coin2 ...} ema20 ema50`** - Scan dengan custom EMA (format fleksibel, max 5 coins)\n"
             "🔹 **`$ {coin} [timeframe]`** - Perintah cepat (timeframe default 1h)\n"
             "🔹 **`$ {coin} [timeframe] {long/short}`** - Perintah cepat spesifik\n"
             "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
@@ -612,6 +833,9 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
             "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
+            "• `!scan BTC,ETH,SOL` → Scan BTC, ETH, SOL; pilih setup terbaik per coin\n"
+            "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50\n"
+            "• `!scan BTC ETH SOL ema20 ema50` → Format fleksibel tanpa koma\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
@@ -628,6 +852,7 @@ async def slash_help(interaction: discord.Interaction):
             "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
             "**⏱️ TIMEFRAME**: Optional, default 1h. Lihat kolom sebelah kiri untuk pilihan\n"
             "**📈 DIRECTION**: Auto (default), Long, Short\n"
+            "**📊 EMA**: Optional, default 13/21. Custom EMA untuk scan dan signal\n"
             "**📊 DETAIL**: Tambahkan 'detail' untuk analisis lengkap"
         ),
         inline=False
