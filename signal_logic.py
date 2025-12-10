@@ -87,65 +87,105 @@ def calculate_confidence_score(direction,
     # EMA trend strength
     ema_spread_pct = abs(ema13 - ema21) / (current_price if current_price != 0 else 1) * 100
     if direction == 'long' and ema13 > ema21:
-        score += 12; reasons.append(f"EMA Bullish ({ema_short}>{ema_long})")
+        score += 12; reasons.append(f"📈 Trend bullish dikonfirmasi EMA{ema_short} di atas EMA{ema_long} (+12)")
     elif direction == 'short' and ema13 < ema21:
-        score += 12; reasons.append(f"EMA Bearish ({ema_short}<{ema_long})")
+        score += 12; reasons.append(f"📉 Trend bearish dikonfirmasi EMA{ema_short} di bawah EMA{ema_long} (+12)")
+    elif direction == 'long' and ema13 <= ema21:
+        reasons.append(f"⚠️ EMA{ema_short} masih di bawah EMA{ema_long} - sinyal counter-trend, risiko tinggi (0)")
+    elif direction == 'short' and ema13 >= ema21:
+        reasons.append(f"⚠️ EMA{ema_short} masih di atas EMA{ema_long} - sinyal counter-trend, risiko tinggi (0)")
+    
     if ema_spread_pct > 1:
-        score += 8; reasons.append(f"Spread EMA kuat (>{ema_spread_pct:.1f}%)")
+        score += 8; reasons.append(f"🚀 Momentum trend sangat kuat dengan spread {ema_spread_pct:.2f}% (+8)")
     elif ema_spread_pct > 0.5:
-        score += 4; reasons.append(f"Spread EMA moderat ({ema_spread_pct:.1f}%)")
+        score += 4; reasons.append(f"⚡ Momentum trend moderat dengan spread {ema_spread_pct:.2f}% (+4)")
+    else:
+        reasons.append(f"📍 Spread EMA lemah {ema_spread_pct:.2f}% - market consolidation atau trend lemah (0)")
 
     # MACD
     macd_diff = macd_line - macd_signal
     if direction == 'long' and macd_diff > 0:
-        score += 12; reasons.append("MACD Bullish")
+        score += 12; reasons.append(f"📊 MACD histogram positif - momentum bullish aktif (+12)")
         if macd_diff > 0.05:
-            score += 8; reasons.append("Momentum MACD kuat")
+            score += 8; reasons.append(f"💪 MACD divergence kuat ({macd_diff:.4f}) - strong bullish momentum (+8)")
+        elif macd_diff > 0.01:
+            reasons.append(f"📈 MACD histogram positif tapi lemah ({macd_diff:.4f}) - momentum masih building")
     elif direction == 'short' and macd_diff < 0:
-        score += 12; reasons.append("MACD Bearish")
+        score += 12; reasons.append(f"📊 MACD histogram negatif - momentum bearish aktif (+12)")
         if macd_diff < -0.05:
-            score += 8; reasons.append("Momentum MACD kuat")
+            score += 8; reasons.append(f"💪 MACD divergence kuat ({macd_diff:.4f}) - strong bearish momentum (+8)")
+        elif macd_diff < -0.01:
+            reasons.append(f"📉 MACD histogram negatif tapi lemah ({macd_diff:.4f}) - momentum masih building")
+    elif direction == 'long' and macd_diff <= 0:
+        reasons.append(f"🔴 MACD masih negatif ({macd_diff:.4f}) - counter-trend signal, tunggu crossover (0)")
+    elif direction == 'short' and macd_diff >= 0:
+        reasons.append(f"🔴 MACD masih positif ({macd_diff:.4f}) - counter-trend signal, tunggu crossover (0)")
 
     # RSI
     if 40 <= rsi <= 60:
-        score += 15; reasons.append("RSI netral (40-60)")
+        score += 15; reasons.append(f"✅ RSI netral di {rsi:.1f} - zona ideal untuk entry dengan ruang gerak (+15)")
     elif 30 <= rsi < 40 or 60 < rsi <= 70:
-        score += 8; reasons.append("RSI dapat diterima (30-40/60-70)")
+        score += 8; reasons.append(f"⚠️ RSI di {rsi:.1f} - masih acceptable tapi perlu waspada (+8)")
     else:
-        reasons.append("RSI ekstrem (kurang ideal)")
+        if rsi < 30:
+            reasons.append(f"🔴 RSI oversold ekstrem di {rsi:.1f} - risiko reversal tinggi (0)")
+        else:
+            reasons.append(f"🔴 RSI overbought ekstrem di {rsi:.1f} - risiko reversal tinggi (0)")
 
     # SMC (FVG / OB)
     smc_score = 0
     if relevant_fvg:
-        smc_score += 8; reasons.append("FVG valid")
+        fvg_type = relevant_fvg.get('type', 'Unknown')
+        smc_score += 8; reasons.append(f"🎯 {fvg_type} FVG terdeteksi - area imbalance valid untuk entry (+8)")
     if ob_high or ob_low:
-        smc_score += 7; reasons.append("Order Block valid")
+        smc_score += 7; reasons.append(f"🧱 Order Block teridentifikasi - zona institutional support/resistance (+7)")
     if relevant_fvg:
         dist = abs(entry_price - relevant_fvg['level']) / (current_price if current_price != 0 else 1) * 100
         if dist <= 0.2:
-            smc_score += 5; reasons.append(f"Entry dekat FVG/OB (<{dist:.1f}%)")
+            smc_score += 5; reasons.append(f"🎪 Entry sangat dekat dengan FVG level ({dist:.2f}%) - high probability setup (+5)")
+        elif dist <= 0.5:
+            reasons.append(f"📍 Entry cukup dekat dengan FVG level ({dist:.2f}%) - acceptable entry zone")
+        else:
+            reasons.append(f"⚠️ Entry jauh dari FVG level ({dist:.2f}%) - tunggu retest untuk entry lebih baik")
+    
+    if not relevant_fvg and not (ob_high or ob_low):
+        reasons.append(f"📭 Tidak ada struktur SMC terdeteksi - trading berdasarkan indikator saja (0)")
+    
     score += smc_score
 
     # Stochastic
     stoch_score = 0
     if stoch_k is not None and stoch_d is not None:
         if direction == 'long' and stoch_k > stoch_d:
-            stoch_score += 8; reasons.append("Stochastic bullish crossover")
+            stoch_score += 8; reasons.append(f"🔄 Stochastic bullish crossover terdeteksi (K={stoch_k:.1f} > D={stoch_d:.1f}) (+8)")
             if stoch_k < 20:
-                stoch_score += 4; reasons.append("Stochastic oversold (mendukung)")
+                stoch_score += 4; reasons.append(f"💎 Crossover terjadi di zona oversold ({stoch_k:.1f}) - strong buy signal (+4)")
             elif stoch_k > 80:
-                stoch_score -= 3; reasons.append("Stochastic overbought (peringatan)")
+                stoch_score -= 3; reasons.append(f"⚠️ Crossover di zona overbought ({stoch_k:.1f}) - risiko pullback (-3)")
+            elif 20 <= stoch_k <= 80:
+                reasons.append(f"✓ Crossover di zona netral ({stoch_k:.1f}) - timing acceptable")
         elif direction == 'short' and stoch_k < stoch_d:
-            stoch_score += 8; reasons.append("Stochastic bearish crossover")
+            stoch_score += 8; reasons.append(f"🔄 Stochastic bearish crossover terdeteksi (K={stoch_k:.1f} < D={stoch_d:.1f}) (+8)")
             if stoch_k > 80:
-                stoch_score += 4; reasons.append("Stochastic overbought (mendukung)")
+                stoch_score += 4; reasons.append(f"💎 Crossover terjadi di zona overbought ({stoch_k:.1f}) - strong sell signal (+4)")
             elif stoch_k < 20:
-                stoch_score -= 3; reasons.append("Stochastic oversold (peringatan)")
+                stoch_score -= 3; reasons.append(f"⚠️ Crossover di zona oversold ({stoch_k:.1f}) - risiko bounce (-3)")
+            elif 20 <= stoch_k <= 80:
+                reasons.append(f"✓ Crossover di zona netral ({stoch_k:.1f}) - timing acceptable")
         else:
             if direction == 'long' and stoch_k < 30:
-                stoch_score += 3; reasons.append("Stochastic rendah tapi belum crossover")
+                stoch_score += 3; reasons.append(f"🔵 Stochastic di zona oversold ({stoch_k:.1f}) menunggu crossover bullish (+3)")
             elif direction == 'short' and stoch_k > 70:
-                stoch_score += 3; reasons.append("Stochastic tinggi tapi belum crossover")
+                stoch_score += 3; reasons.append(f"🔵 Stochastic di zona overbought ({stoch_k:.1f}) menunggu crossover bearish (+3)")
+            elif direction == 'long' and stoch_k < stoch_d:
+                reasons.append(f"⚠️ Stochastic bearish (K={stoch_k:.1f} < D={stoch_d:.1f}) - bertentangan dengan signal long (0)")
+            elif direction == 'short' and stoch_k > stoch_d:
+                reasons.append(f"⚠️ Stochastic bullish (K={stoch_k:.1f} > D={stoch_d:.1f}) - bertentangan dengan signal short (0)")
+            else:
+                reasons.append(f"📊 Stochastic di zona netral (K={stoch_k:.1f}) - tidak ada signal kuat (0)")
+    else:
+        reasons.append(f"❌ Data Stochastic tidak tersedia - analisis momentum terbatas (0)")
+    
     stoch_score = max(min(stoch_score, 12), -5)
     score += stoch_score
 
@@ -153,13 +193,15 @@ def calculate_confidence_score(direction,
     vol_score = 0
     if vol_ratio is not None:
         if vol_ratio >= 1.5:
-            vol_score += 13; reasons.append(f"Volume tinggi (x{vol_ratio:.2f})")
+            vol_score += 13; reasons.append(f"📊 Volume sangat tinggi {vol_ratio:.2f}x rata-rata - strong institutional interest (+13)")
         elif vol_ratio >= 1.0:
-            vol_score += 8; reasons.append(f"Volume di atas rata-rata (x{vol_ratio:.2f})")
+            vol_score += 8; reasons.append(f"📈 Volume di atas rata-rata {vol_ratio:.2f}x - healthy market participation (+8)")
         elif vol_ratio >= 0.7:
-            vol_score += 3; reasons.append(f"Volume rata-rata (x{vol_ratio:.2f})")
+            vol_score += 3; reasons.append(f"📉 Volume normal {vol_ratio:.2f}x - acceptable trading activity (+3)")
         else:
-            vol_score -= 7; reasons.append(f"Volume rendah (x{vol_ratio:.2f})")
+            vol_score -= 7; reasons.append(f"⚠️ Volume rendah {vol_ratio:.2f}x - low liquidity, risiko slippage tinggi (-7)")
+    else:
+        reasons.append(f"❌ Data volume tidak tersedia - tidak bisa konfirmasi kekuatan move (0)")
     score += vol_score
 
     # Final clamp & label
