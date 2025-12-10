@@ -14,17 +14,26 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 - **Modern Slash Commands**: Interactive commands with dropdown menus for easy use
 - **Chart Generation**: Visual position setup with entry/SL/TP levels, FVG zones, EMAs, and volume bars
 - **Quick Commands**: Support for $ prefix for faster signal checks
+- **Multi-Coin Scanning**: Analyze multiple coins simultaneously with best setup selection
+- **Flexible Parameter Ordering**: Commands support any order for timeframe, direction, and custom EMAs
+- **Custom EMA Support**: Configure short and long EMA periods for personalized analysis
+- **Detailed Analysis**: Optional detailed technical analysis with comprehensive reasoning
+- **Coin List Management**: Paginated list of all available trading pairs
+- **Enhanced Signal Confidence**: Detailed reasoning with emoji indicators and specific values
+- **Reply Behavior**: Commands reply to user messages for better conversation flow
 - **Indonesian Help**: Localized help commands in Indonesian
 - **Customizable Signals**: Configurable RSI and EMA parameters
 - **Multiple Bot Instances**: Run multiple independent bots simultaneously
 - **Docker Support**: Ready-to-deploy with Docker and Docker Compose
 - **Dynamic Caching**: Automatically refreshes trading pairs cache every hour to include new listings and delistings
+- **Network Resilience**: Automatic retry and connection pooling for reliable API access
+- **Comprehensive Testing**: Included bot testing guide for all commands and scenarios
 - **Error Handling**: Robust error handling and logging for reliable operation
 - **Rate Limiting**: Built-in delays to respect API limits
 
 ## 📋 Prerequisites
 
-- Python 3.9 or higher
+- Python 3.9 or higher (tested with Python 3.9+ for datetime compatibility)
 - Docker and Docker Compose (optional, for containerized deployment)
 - Discord bot token
 - Internet connection for API access
@@ -162,12 +171,12 @@ You can run multiple bot instances simultaneously, each with different tokens se
 ## 🔧 How It Works
 
 1. **Initialization**: Bot loads configuration and establishes Discord connection
-2. **Command Handling**: Listens for `!signal`, `$signal`, and `/signal` slash commands in Discord channels
+2. **Command Handling**: Listens for `!signal`, `$signal`, `!scan`, `!coinlist`, and `/signal`, `/scan`, `/coinlist` slash commands in Discord channels
 3. **Data Fetching**: Retrieves real-time price data via WebSocket from Bybit
 4. **Signal Calculation**: Applies RSI and EMA analysis to generate trading signals
 5. **Chart Generation**: Creates visual charts with position setup, EMAs, FVG zones, and volume bars
 6. **Response**: Posts formatted signals with embedded charts back to the Discord channel
-7. **Caching**: Maintains pair cache for efficient lookups
+7. **Caching**: Maintains pair cache for efficient lookups with automatic refresh
 
 ## 📊 Usage
 
@@ -178,17 +187,20 @@ The bot supports the following timeframes: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h,
 The bot supports both traditional prefix commands and modern slash commands:
 
 #### Prefix Commands
-- `!signal {coin} {timeframe}` - General signal check (shows both long and short signals)
-- `!signal {coin} {timeframe} {long/short}` - Specific direction signal check
+- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [detail]` - General signal check with flexible parameters
+- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [detail]` - Specific direction signal check
+- `!scan {coin1 coin2 ...} [ema_short] [ema_long]` - Scan multiple coins (max 5) and select best setup per coin
+- `!coinlist` - Display paginated list of available trading coins
 
 #### Quick Commands ($ Prefix)
-- `$SYMBOL TIMEFRAME` - Quick signal check (e.g., `$BTC 1h`, `$ETH 4h long`)
-- `$SYMBOL TIMEFRAME long/short` - Quick specific direction check
+- `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [detail]` - Quick signal check with flexible parameters
 
 #### Slash Commands (Recommended)
 The bot now supports Discord's modern slash commands with dropdown helpers:
 ```
-/signal          → Generate trading signal (with dropdowns for timeframe & direction)
+/signal          → Generate trading signal (with dropdowns for timeframe, direction, & custom EMAs)
+/scan           → Scan multiple coins for best trading setups
+/coinlist       → List all available trading coins with pagination
 /help           → Show available commands and usage information (in Indonesian)
 ```
 
@@ -199,19 +211,28 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 - **Autocomplete** for trading pair symbols
 
 **Examples:**
+- `!signal BTC` - Check for signals on BTC/USDT 1h (default timeframe)
 - `!signal BTC 1h` - Check for both long and short signals on BTC/USDT 1-hour chart
 - `!signal BTC 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
-- `!signal ETH 4h short` - Check for short signals on ETH/USDT 4-hour chart
-- `!signal HYPE 1d` - Check for signals on HYPE/USDT daily chart
-- `$BTC 1h` - Quick check for BTC signals
-- `$ETH 4h long` - Quick long signal check for ETH
+- `!signal ETH 4h short ema20 ema50` - Check for short signals with custom EMA 20/50
+- `!signal SOL long ema9 ema21 4h detail` - Flexible parameter order with detailed analysis
+- `!scan BTC ETH SOL` - Scan BTC, ETH, SOL and show best setup for each
+- `!scan BTC,ETH ema20 ema50` - Scan with custom EMA periods
+- `!coinlist` - Show paginated list of all available coins
+- `$BTC` - Quick check for BTC signals (1h default)
+- `$ETH 4h long ema20 ema50 detail` - Quick command with all parameters
 - `/signal` - Use the interactive slash command with dropdowns
+- `/scan` - Interactive multi-coin scanning
+- `/coinlist` - Paginated coin list
 - `/help` - Show help information in Indonesian
 
 **Supported Parameters:**
 - **COIN**: Cryptocurrency symbol (e.g., BTC, ETH, HYPE). USDT is automatically added.
-- **TIMEFRAME**: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
+- **TIMEFRAME**: Optional, default 1h. Supported: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
 - **DIRECTION**: Auto (default), Long, or Short
+- **EMA_SHORT**: Short EMA period (default: 13, range: 5-200)
+- **EMA_LONG**: Long EMA period (default: 21, range: 5-200)
+- **DETAIL**: Optional 'detail' flag for comprehensive technical analysis
 
 ## 📊 Chart Features
 
@@ -219,7 +240,7 @@ The bot generates professional trading charts with comprehensive position setup 
 
 ### Chart Elements
 - **Candlestick Charts**: 100-period candlestick display with modern styling
-- **Technical Indicators**: EMA 13 (cyan) and EMA 21 (coral) moving averages
+- **Technical Indicators**: Custom EMA periods (user-configurable short/long) with dynamic labels
 - **Position Levels**: Entry, Stop Loss, Take Profit 1 & 2 levels with labels
 - **Risk/Reward Zones**: Visual shaded areas showing risk (red) and reward (green) zones
 - **FVG Zones**: Fair Value Gaps highlighted with semi-transparent overlays
@@ -237,17 +258,25 @@ The bot generates professional trading charts with comprehensive position setup 
 
 ### Customizing Signal Parameters
 
-Edit `signal_logic.py` to adjust RSI and EMA parameters:
+The bot supports custom EMA periods directly through commands. You can also modify default parameters in the code:
 
 ```python
-# Example: Change RSI overbought/oversold levels
-rsi_overbought = 70
-rsi_oversold = 30
-
-# Example: Change EMA periods
-ema_short_period = 9
-ema_long_period = 21
+# Example: Change default EMA periods in signal_logic.py
+def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', 
+                       forced_direction: str = None, return_dict: bool = False, 
+                       ema_short: int = 13, ema_long: int = 21):
+    # ema_short and ema_long can be customized per command
 ```
+
+**Command Examples with Custom EMAs:**
+- `!signal BTC 1h long ema20 ema50` - Use EMA 20/50 instead of default 13/21
+- `/signal symbol:BTC timeframe:1h direction:long ema_short:20 ema_long:50` - Slash command with custom EMAs
+- `$BTC 4h ema9 ema21` - Quick command with custom EMAs
+
+**EMA Period Ranges:**
+- Short EMA: 5-200 periods
+- Long EMA: 5-200 periods
+- Short EMA must be less than Long EMA
 
 ### Adding New Indicators
 
@@ -271,6 +300,22 @@ docker-compose logs -f discord-crypto-bot-2
 
 # Local Python
 # Logs appear in the console where you ran python discord_bot.py
+```
+
+## 🧪 Testing
+
+The project includes a comprehensive bot testing guide (`bot_test_guide.md`) with:
+
+- **Command Testing Checklist**: Step-by-step testing for all command types
+- **Parameter Validation**: Testing edge cases and error handling
+- **Performance Expectations**: Response time guidelines
+- **Environment Setup**: Testing environment configuration
+- **Troubleshooting**: Common issues and debug information
+
+Run the testing guide to ensure all features work correctly:
+```bash
+# The testing guide is available at bot_test_guide.md
+# Follow the checklist to validate bot functionality
 ```
 
 ## 🐛 Troubleshooting
