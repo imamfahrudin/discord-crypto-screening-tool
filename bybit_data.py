@@ -207,7 +207,7 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
                     df = df.astype({'open':'float','high':'float','low':'float','close':'float','volume':'float'})
                     df = df.iloc[::-1].reset_index(drop=True)
                     try:
-                        df['open_time'] = pd.to_datetime(df['open_time'], unit='ms')
+                        df['open_time'] = pd.to_datetime(df['open_time'].astype('int64'), unit='ms')
                     except Exception as e:
                         print(f"{LOG_PREFIX} ⚠️ Error converting timestamps: {e}")
                     print(f"{LOG_PREFIX} ✅ Successfully fetched {len(df)} candles for {symbol}")

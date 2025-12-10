@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from io import BytesIO
 from datetime import datetime
+import warnings
 
 def generate_chart_with_setup(df: pd.DataFrame, 
                                symbol: str, 
@@ -305,7 +306,9 @@ def generate_chart_with_setup(df: pd.DataFrame,
     ax.set_facecolor('#ffffff')
     
     # Adjust layout
-    plt.tight_layout()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        plt.tight_layout()
     
     # Save to BytesIO with higher quality
     buf = BytesIO()

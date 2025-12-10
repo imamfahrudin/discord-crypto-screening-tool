@@ -3,7 +3,7 @@ from discord.ext import commands
 import json
 import os
 import traceback
-from datetime import datetime
+from datetime import datetime, UTC
 import re
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
@@ -374,7 +374,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
 
 def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False):
     """Create embed from dict data (new format)"""
-    current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    current_time = datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')
     
     direction = data.get('direction', 'NETRAL').upper()
     
@@ -681,7 +681,7 @@ async def scan_command(ctx, *, args: str):
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
 def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list):
-    current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+    current_time = datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S UTC')
     
     direction = data.get('direction', 'NETRAL').upper()
     
