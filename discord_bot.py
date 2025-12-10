@@ -236,15 +236,15 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
 # Helper functions for sending responses (works for both commands and direct messages)
 async def send_response(ctx_or_message, **kwargs):
     if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
-        await ctx_or_message.send(**kwargs)
+        await ctx_or_message.reply(**kwargs)
     else:  # It's a discord.Message
-        await ctx_or_message.channel.send(**kwargs)
+        await ctx_or_message.reply(**kwargs)
 
 async def send_error(ctx_or_message, message: str):
     if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
-        await ctx_or_message.send(message)
+        await ctx_or_message.reply(message)
     else:  # It's a discord.Message
-        await ctx_or_message.channel.send(message)
+        await ctx_or_message.reply(message)
 
 async def get_available_coins():
     """Fetch and return a sorted list of unique base coins from Bybit pairs."""
