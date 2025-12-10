@@ -70,6 +70,7 @@ async def on_message(message):
     # Check if message starts with "$" for quick signal commands
     if message.content.startswith('$'):
         print(f"{LOG_PREFIX} 💬 Processing $ command from {message.author}: '{message.content}'")
+        await message.add_reaction('🫡')
         content = message.content[1:].strip()  # Remove the "$" and strip whitespace
         if not content:
             print(f"{LOG_PREFIX} ⚠️ Empty content after $, ignoring")
@@ -171,9 +172,15 @@ async def on_message(message):
         print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long} detail={show_detail}")
         # Generate the signal
         await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
+        await message.remove_reaction('🫡', bot.user)
+        await message.add_reaction('✅')
 
     # Process other commands (important: this must be called for !signal and other commands to work)
-    await bot.process_commands(message)
+    if message.content.startswith('!'):
+        await message.add_reaction('🫡')
+        await bot.process_commands(message)
+        await message.remove_reaction('🫡', bot.user)
+        await message.add_reaction('✅')
 
 # ============================
 # Helper for embed formatting
