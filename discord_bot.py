@@ -172,15 +172,11 @@ async def on_message(message):
         print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long} detail={show_detail}")
         # Generate the signal
         await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
-        await message.remove_reaction('🫡', bot.user)
-        await message.add_reaction('✅')
 
     # Process other commands (important: this must be called for !signal and other commands to work)
     if message.content.startswith('!'):
         await message.add_reaction('🫡')
         await bot.process_commands(message)
-        await message.remove_reaction('🫡', bot.user)
-        await message.add_reaction('✅')
 
 # ============================
 # Helper for embed formatting
@@ -377,6 +373,13 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
             await send_response(ctx_or_message, embed=embed)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
             
+    # Add success reaction
+    message_obj = ctx_or_message.message if hasattr(ctx_or_message, 'message') else ctx_or_message
+    try:
+        await message_obj.remove_reaction('🫡', message_obj.guild.me)
+        await message_obj.add_reaction('✅')
+    except Exception:
+        pass
     except ValueError as e:
         print(f"{LOG_PREFIX} ⚠️ ValueError in signal generation: {e}")
         await send_error(ctx_or_message, f"⚠️ Error in input/data: `{e}`")
@@ -793,6 +796,14 @@ async def coinlist_command(ctx):
         
         await send_response(ctx, embed=embed, view=view)
         print(f"{LOG_PREFIX} ✅ Coinlist sent successfully ({len(coins)} coins in {len(chunks)} pages)")
+    
+    # Add success reaction
+    message_obj = ctx.message
+    try:
+        await message_obj.remove_reaction('🫡', message_obj.guild.me)
+        await message_obj.add_reaction('✅')
+    except Exception:
+        pass
     
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Coinlist command error: {e}")
