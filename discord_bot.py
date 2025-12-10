@@ -253,6 +253,14 @@ async def send_error(ctx_or_message, message: str):
     else:  # It's a discord.Message
         await ctx_or_message.reply(message)
 
+    # Add sad face reaction for errors
+    message_obj = ctx_or_message.message if hasattr(ctx_or_message, 'message') else ctx_or_message
+    try:
+        await message_obj.remove_reaction('🫡', message_obj.guild.me)
+        await message_obj.add_reaction('😢')
+    except Exception:
+        pass  # Ignore if can't react
+
 async def get_available_coins():
     """Fetch and return a sorted list of unique base coins from Bybit pairs."""
     def fetch_coins():
