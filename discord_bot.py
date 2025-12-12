@@ -266,10 +266,10 @@ async def send_error(ctx_or_message, message: str):
     except Exception:
         pass  # Ignore if can't react
 
-async def get_available_coins():
-    """Fetch and return a sorted list of unique base coins from Bybit pairs."""
+async def get_available_coins(exchange='bybit'):
+    """Fetch and return a sorted list of unique base coins from exchange pairs."""
     def fetch_coins():
-        pairs = get_all_pairs(force_refresh=False)  # Use cache if available
+        pairs = get_all_pairs(exchange=exchange, force_refresh=False)  # Use cache if available
         coins = set()
         for pair in pairs:
             # Assuming pairs are in BASEQUOTE format (e.g., BTCUSDT -> BTC)
@@ -807,15 +807,19 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     return embed
 
 @bot.command(name="coinlist")
-async def coinlist_command(ctx):
+async def coinlist_command(ctx, *, args: str = ""):
     """
     List all available coins for trading signals.
-    Usage: !coinlist
+    Usage: !coinlist [binance]
     """
     print(f"{LOG_PREFIX} 📋 Coinlist command triggered by {ctx.author}")
     
+    # Parse exchange (default to bybit)
+    exchange = 'binance' if 'binance' in args.lower() else 'bybit'
+    print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")
+    
     try:
-        coins = await get_available_coins()
+        coins = await get_available_coins(exchange=exchange)
         if not coins:
             await send_error(ctx, "⚠️ No coins available at the moment. Try again later.")
             return
@@ -826,6 +830,7 @@ async def coinlist_command(ctx):
         
         view = CoinListView(chunks, len(coins))
         embed = view.get_embed()
+        embed.title = f"📋 Available Coins ({exchange.upper()})"
         
         await send_response(ctx, embed=embed, view=view)
         print(f"{LOG_PREFIX} ✅ Coinlist sent successfully ({len(coins)} coins in {len(chunks)} pages)")
@@ -878,8 +883,8 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`$ {coin} [timeframe] {long/short}`** - Perintah cepat spesifik\n"
             "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
             "🔹 **`$ {coin} [timeframe] detail`** - Perintah cepat dengan analisis detail\n"
-            "🔹 **`!coinlist`** - Lihat daftar coin yang tersedia\n"
-            "🔹 **`/coinlist`** - Slash command untuk daftar coin"
+            "🔹 **`!coinlist [binance]`** - Lihat daftar coin yang tersedia\n"
+            "🔹 **`/coinlist [exchange]`** - Slash command untuk daftar coin"
         ),
         inline=False
     )
@@ -1152,13 +1157,21 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
     print(f"{LOG_PREFIX} ✅ Slash scan command completed")
 
 @tree.command(name="coinlist", description="List all available coins for trading signals")
-async def slash_coinlist(interaction: discord.Interaction):
+@discord.app_commands.describe(exchange="Exchange to list coins from (bybit/binance, default: bybit)")
+async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} 📋 Slash coinlist command triggered by {interaction.user}")
     
+    # Normalize exchange name
+    exchange = exchange.lower()
+    if exchange not in ['bybit', 'binance']:
+        await interaction.response.send_message("⚠️ Invalid exchange. Use 'bybit' or 'binance'.", ephemeral=True)
+        return
+    
+    print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")
     await interaction.response.defer()  # Defer for potential delay
     
     try:
-        coins = await get_available_coins()
+        coins = await get_available_coins(exchange=exchange)
         if not coins:
             await interaction.followup.send("⚠️ No coins available at the moment. Try again later.")
             return
@@ -1169,6 +1182,7 @@ async def slash_coinlist(interaction: discord.Interaction):
         
         view = CoinListView(chunks, len(coins))
         embed = view.get_embed()
+        embed.title = f"📋 Available Coins ({exchange.upper()})"
         
         await interaction.followup.send(embed=embed, view=view)
         print(f"{LOG_PREFIX} ✅ Slash coinlist sent successfully ({len(coins)} coins in {len(chunks)} pages)")
