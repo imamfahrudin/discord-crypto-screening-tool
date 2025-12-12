@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import re
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
-from bybit_data import normalize_symbol, pair_exists, get_all_pairs
+from exchange_factory import normalize_symbol, pair_exists, get_all_pairs
 from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
 from chart_generator import generate_chart_with_setup, generate_neutral_chart
@@ -76,11 +76,11 @@ async def on_message(message):
             print(f"{LOG_PREFIX} ⚠️ Empty content after $, ignoring")
             return  # Empty after "$", ignore
 
-        # Parse the content: symbol [timeframe] [direction] [ema_short] [ema_long] (flexible order)
+        # Parse the content: symbol [timeframe] [direction] [ema_short] [ema_long] [exchange] [detail] (flexible order)
         parts = content.split()
         if len(parts) < 1:
             print(f"{LOG_PREFIX} ⚠️ Insufficient parts in $ command: {len(parts)}")
-            await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [detail]`\nCoin harus di depan, timeframe default 1h jika tidak ditentukan.\nContoh: `$BTC` atau `$ETH 4h long ema20 ema50` atau `$BTC detail`")
+            await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [binance] [detail]`\nCoin harus di depan, timeframe default 1h jika tidak ditentukan.\nContoh: `$BTC` atau `$ETH 4h long ema20 ema50` atau `$BTC binance` atau `$BTC detail`")
             return
 
         symbol = parts[0].upper()
@@ -92,10 +92,17 @@ async def on_message(message):
         direction = None
         emas = []
         show_detail = False
+        exchange = "bybit"  # Default exchange
         valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
         
         for part in remaining_parts:
             part_lower = part.lower()
+            
+            # Check if it's an exchange
+            if part_lower in ('binance', 'bybit'):
+                exchange = part_lower
+                print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
+                continue
             
             # Check if it's a timeframe
             if part_lower in valid_tfs:
@@ -169,9 +176,9 @@ async def on_message(message):
                 await send_error(message, "⚠️ EMA periods must be between 5 and 200.")
                 return
 
-        print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long} detail={show_detail}")
+        print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} exchange={exchange} ema_short={ema_short} ema_long={ema_long} detail={show_detail}")
         # Generate the signal
-        await generate_signal_response(message, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
+        await generate_signal_response(message, symbol, timeframe, direction, exchange, ema_short, ema_long, show_detail)
 
     # Process other commands (important: this must be called for !signal and other commands to work)
     if message.content.startswith('!'):
@@ -471,16 +478,18 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
 @bot.command(name="signal")
 async def signal_command(ctx, *args):
     """
-    Usage: !signal <symbol> [timeframe] [direction] [ema_short] [ema_long] [detail]
+    Usage: !signal <symbol> [timeframe] [direction] [ema_short] [ema_long] [binance] [detail]
     Order is flexible after symbol. Examples:
       !signal BTC 1h
       !signal BTC 1h long
       !signal BTC short ema20 ema50 1h
       !signal ETH ema9 ema21 4h long
       !signal BTC 1h detail
+      !signal BTC binance
+      !signal ETH 4h binance long
     """
     if len(args) < 1:
-        await send_error(ctx, "⚠️ Format: `!signal SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [detail]`\nSymbol wajib, timeframe default 1h jika tidak ditentukan.\nContoh: `!signal BTC` atau `!signal ETH 4h long ema20 ema50` atau `!signal BTC detail`")
+        await send_error(ctx, "⚠️ Format: `!signal SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [binance] [detail]`\nSymbol wajib, timeframe default 1h jika tidak ditentukan.\nContoh: `!signal BTC` atau `!signal ETH 4h long ema20 ema50` atau `!signal BTC binance` atau `!signal BTC detail`")
         return
 
     symbol = args[0].upper()
@@ -491,10 +500,17 @@ async def signal_command(ctx, *args):
     direction = None
     emas = []
     show_detail = False
+    exchange = "bybit"  # Default exchange
     valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
     
     for part in remaining_parts:
         part_lower = part.lower()
+        
+        # Check if it's an exchange
+        if part_lower in ('binance', 'bybit'):
+            exchange = part_lower
+            print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
+            continue
         
         # Check if it's a timeframe
         if part_lower in valid_tfs:
@@ -552,32 +568,40 @@ async def signal_command(ctx, *args):
             await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
             return
     
-    await generate_signal_response(ctx, symbol, timeframe, direction, "bybit", ema_short, ema_long, show_detail)
+    await generate_signal_response(ctx, symbol, timeframe, direction, exchange, ema_short, ema_long, show_detail)
 
 @bot.command(name="scan")
 async def scan_command(ctx, *, args: str):
     """
     Scan multiple coins for the best trading signal setup.
-    Usage: !scan <coin1 coin2 ...> [ema_short] [ema_long]
-    Or: !scan <coin1,coin2,...> [ema_short] [ema_long]
+    Usage: !scan <coin1 coin2 ...> [ema_short] [ema_long] [binance]
+    Or: !scan <coin1,coin2,...> [ema_short] [ema_long] [binance]
     For each coin, checks all setups and selects the one with highest confidence.
     Maximum 5 coins per scan.
     """
     if not args.strip():
-        await send_error(ctx, "⚠️ Format: `!scan COIN1 COIN2 ... [ema_short] [ema_long]`\nOr: `!scan COIN1,COIN2,... [ema_short] [ema_long]`\nContoh: `!scan BTC ETH SOL` atau `!scan BTC,ETH ema20 ema50`")
+        await send_error(ctx, "⚠️ Format: `!scan COIN1 COIN2 ... [ema_short] [ema_long] [binance]`\nOr: `!scan COIN1,COIN2,... [ema_short] [ema_long] [binance]`\nContoh: `!scan BTC ETH SOL` atau `!scan BTC,ETH ema20 ema50` atau `!scan BTC ETH binance`")
         return
 
     parts = args.split()
     if len(parts) < 1:
-        await send_error(ctx, "⚠️ Format: `!scan COIN1 COIN2 ... [ema_short] [ema_long]`\nOr: `!scan COIN1,COIN2,... [ema_short] [ema_long]`\nContoh: `!scan BTC ETH SOL` atau `!scan BTC,ETH ema20 ema50`")
+        await send_error(ctx, "⚠️ Format: `!scan COIN1 COIN2 ... [ema_short] [ema_long] [binance]`\nOr: `!scan COIN1,COIN2,... [ema_short] [ema_long] [binance]`\nContoh: `!scan BTC ETH SOL` atau `!scan BTC,ETH ema20 ema50` atau `!scan BTC ETH binance`")
         return
 
-    # Flexible parsing: collect coins and EMAs
+    # Flexible parsing: collect coins, EMAs, and exchange
     coins = []
     emas = []
+    exchange = "bybit"  # Default exchange
 
     for part in parts:
         part_lower = part.lower()
+        
+        # Check if it's an exchange
+        if part_lower in ('binance', 'bybit'):
+            exchange = part_lower
+            print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
+            continue
+        
         # Try to parse as EMA
         ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
         try:
@@ -627,7 +651,7 @@ async def scan_command(ctx, *, args: str):
         await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
         return
 
-    print(f"{LOG_PREFIX} 🔍 Scan command triggered by {ctx.author} for coins: {coins_final} with EMA {ema_short}/{ema_long}")
+    print(f"{LOG_PREFIX} 🔍 Scan command triggered by {ctx.author} for coins: {coins_final} with EMA {ema_short}/{ema_long} on {exchange.upper()}")
 
     # Define all setups to check
     setups = [
@@ -651,10 +675,10 @@ async def scan_command(ctx, *, args: str):
                 setup_str += f" ema{ema_short} ema{ema_long}"
             
             def run_scan():
-                symbol_norm = normalize_symbol(coin)
-                if not pair_exists(symbol_norm):
+                symbol_norm = normalize_symbol(coin, exchange)
+                if not pair_exists(symbol_norm, exchange):
                     return None
-                result = generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+                result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
                 return result, setup_str
             
             try:
@@ -684,7 +708,7 @@ async def scan_command(ctx, *, args: str):
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
         
         # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin), best_timeframe)
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe)
         
         # Create embed with all confidences listed
         embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results)
@@ -867,6 +891,7 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
             "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
+            "• `!signal BTC binance` → Gunakan data Binance Futures\n"
             "• `!scan BTC,ETH,SOL` → Scan BTC, ETH, SOL; pilih setup terbaik per coin\n"
             "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50"
         ),
@@ -877,12 +902,14 @@ async def slash_help(interaction: discord.Interaction):
         name="🎯 **Contoh Penggunaan** (2/2)",
         value=(
             "• `!scan BTC ETH SOL ema20 ema50` → Format fleksibel tanpa koma\n"
+            "• `!scan BTC ETH binance` → Scan dengan data Binance\n"
             "• `/scan BTC,ETH,SOL` → Slash scan untuk BTC, ETH, SOL\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
             "• `$BTC 1h detail` → Cepat dengan analisis detail\n"
+            "• `$BTC binance` → Cepat dengan data Binance\n"
             "• `/signal` → Slash command interaktif (support custom EMA)"
         ),
         inline=True
@@ -893,6 +920,7 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
             "**⏱️ TIMEFRAME**: Optional, default 1h. Lihat kolom sebelah kiri untuk pilihan\n"
+            "**🏦 EXCHANGE**: Optional, default Bybit. Pilih 'binance' untuk Binance Futures\n"
             "**📈 DIRECTION**: Auto (default), Long, Short\n"
             "**📊 EMA**: Optional, default 13/21. Custom EMA untuk scan dan signal\n"
             "**📊 DETAIL**: Tambahkan 'detail' untuk analisis lengkap"
@@ -906,14 +934,15 @@ async def slash_help(interaction: discord.Interaction):
             "• Gunakan timeframe yang sesuai dengan gaya trading Anda\n"
             "• Signal auto akan memilih arah terbaik berdasarkan analisis\n"
             "• Chart akan dilampirkan otomatis dengan setup lengkap\n"
-            "• Bot menggunakan data real-time dari Bybit\n"
-            "• Tambahkan 'detail' untuk melihat analisis teknikal mendalam"
+            "• Bot mendukung data dari Bybit dan Binance Futures\n"
+            "• Tambahkan 'detail' untuk melihat analisis teknikal mendalam\n"
+            "• Tambahkan 'binance' untuk menggunakan data Binance Futures"
         ),
         inline=False
     )
     
     embed.set_footer(
-        text="📊 Data dari Bybit Futures • 🔍 Menggunakan RSI & EMA • 🎓 Untuk tujuan edukasi"
+        text="📊 Data dari Bybit & Binance Futures • 🔍 Menggunakan RSI & EMA • 🎓 Untuk tujuan edukasi"
     )
     
     embed.set_author(
@@ -936,7 +965,8 @@ async def slash_help(interaction: discord.Interaction):
     direction="Direction: Auto, Long, or Short",
     ema_short="Short EMA period (default: 13)",
     ema_long="Long EMA period (default: 21)",
-    detail="Show detailed analysis (default: False)"
+    detail="Show detailed analysis (default: False)",
+    exchange="Exchange to use (binance or bybit, default: bybit)"
 )
 @discord.app_commands.choices(timeframe=[
     discord.app_commands.Choice(name="1m", value="1m"),
@@ -953,8 +983,12 @@ async def slash_help(interaction: discord.Interaction):
     discord.app_commands.Choice(name="Long", value="long"),
     discord.app_commands.Choice(name="Short", value="short")
 ])
-async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21, detail: bool = False):
-    print(f"{LOG_PREFIX} ⚡ Slash signal command triggered by {interaction.user}: symbol={symbol}, timeframe={timeframe}, direction={direction}, ema_short={ema_short}, ema_long={ema_long}, detail={detail}")
+@discord.app_commands.choices(exchange=[
+    discord.app_commands.Choice(name="Bybit", value="bybit"),
+    discord.app_commands.Choice(name="Binance", value="binance")
+])
+async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21, detail: bool = False, exchange: str = "bybit"):
+    print(f"{LOG_PREFIX} ⚡ Slash signal command triggered by {interaction.user}: symbol={symbol}, timeframe={timeframe}, direction={direction}, ema_short={ema_short}, ema_long={ema_long}, detail={detail}, exchange={exchange}")
     
     await interaction.response.defer()
     print(f"{LOG_PREFIX} ⏳ Deferred slash command response")
@@ -988,17 +1022,22 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
             await self.interaction.followup.send(**kwargs)
 
     mock_ctx = MockInteraction(interaction)
-    await generate_signal_response(mock_ctx, symbol, timeframe, forced, "bybit", ema_short, ema_long, detail)
+    await generate_signal_response(mock_ctx, symbol, timeframe, forced, exchange, ema_short, ema_long, detail)
     print(f"{LOG_PREFIX} ✅ Slash signal command completed")
 
 @tree.command(name="scan", description="Scan multiple coins for the best trading signal setup")
 @discord.app_commands.describe(
     coins="Coins to scan (comma or space separated, max 5)",
     ema_short="Short EMA period (default: 13)",
-    ema_long="Long EMA period (default: 21)"
+    ema_long="Long EMA period (default: 21)",
+    exchange="Exchange to use (binance or bybit, default: bybit)"
 )
-async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: int = 13, ema_long: int = 21):
-    print(f"{LOG_PREFIX} 🔍 Slash scan command triggered by {interaction.user}: coins='{coins}', ema_short={ema_short}, ema_long={ema_long}")
+@discord.app_commands.choices(exchange=[
+    discord.app_commands.Choice(name="Bybit", value="bybit"),
+    discord.app_commands.Choice(name="Binance", value="binance")
+])
+async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: int = 13, ema_long: int = 21, exchange: str = "bybit"):
+    print(f"{LOG_PREFIX} 🔍 Slash scan command triggered by {interaction.user}: coins='{coins}', ema_short={ema_short}, ema_long={ema_long}, exchange={exchange}")
     
     await interaction.response.defer()
     print(f"{LOG_PREFIX} ⏳ Deferred slash scan command response")
@@ -1029,7 +1068,7 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         await interaction.followup.send(f"⚠️ Too many coins! Maximum 5 coins per scan. You provided {len(coins_final)} coins.")
         return
 
-    print(f"{LOG_PREFIX} 🔍 Processing slash scan for coins: {coins_final} with EMA {ema_short}/{ema_long}")
+    print(f"{LOG_PREFIX} 🔍 Processing slash scan for coins: {coins_final} with EMA {ema_short}/{ema_long} on {exchange.upper()}")
 
     # Define all setups to check
     setups = [
@@ -1053,10 +1092,10 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
                 setup_str += f" ema{ema_short} ema{ema_long}"
             
             def run_scan():
-                symbol_norm = normalize_symbol(coin)
-                if not pair_exists(symbol_norm):
+                symbol_norm = normalize_symbol(coin, exchange)
+                if not pair_exists(symbol_norm, exchange):
                     return None
-                result = generate_trade_plan(symbol_norm, timeframe, "bybit", forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+                result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
                 return result, setup_str
             
             try:
@@ -1086,7 +1125,7 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
         
         # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin), best_timeframe)
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe)
         
         # Create embed with all confidences listed
         embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results)

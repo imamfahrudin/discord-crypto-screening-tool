@@ -2,7 +2,7 @@ import pandas as pd
 import ta
 import numpy as np
 from ws_prices import PRICES
-from bybit_data import fetch_ohlc, normalize_symbol
+from exchange_factory import fetch_ohlc, normalize_symbol
 from utils import calculate_rr, format_price_dynamic
 
 LOG_PREFIX = "[signal_logic]"
@@ -233,14 +233,14 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     """
     print(f"{LOG_PREFIX} 🚀 Starting trade plan generation for {symbol} {timeframe} (forced: {forced_direction}, ema: {ema_short}/{ema_long})")
     
-    symbol = normalize_symbol(symbol)
+    symbol = normalize_symbol(symbol, exchange)
     # timeframe validation is expected upstream (discord bot), but keep friendly check
     if timeframe.lower() not in [t.lower() for t in VALID_TFS]:
         print(f"{LOG_PREFIX} ⚠️ Invalid timeframe: {timeframe}")
         raise ValueError(f"Timeframe {timeframe} invalid. Pilih salah satu {VALID_TFS}")
 
-    print(f"{LOG_PREFIX} 📊 Fetching OHLC data for {symbol}")
-    df = fetch_ohlc(symbol, timeframe)
+    print(f"{LOG_PREFIX} 📊 Fetching OHLC data for {symbol} from {exchange.upper()}")
+    df = fetch_ohlc(symbol, timeframe, exchange)
     if df is None or df.empty or len(df) < 50:
         print(f"{LOG_PREFIX} ❌ Insufficient OHLC data: {len(df) if df is not None else 0} candles")
         raise ValueError("Failed to fetch sufficient OHLC data (need min 50 candles)")
