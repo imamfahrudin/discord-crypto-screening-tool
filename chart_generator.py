@@ -23,7 +23,8 @@ def generate_chart_with_setup(df: pd.DataFrame,
                                ob_low: float = None,
                                current_price: float = None,
                                ema_short: int = 13,
-                               ema_long: int = 21) -> BytesIO:
+                               ema_long: int = 21,
+                               exchange: str = 'bybit') -> BytesIO:
     """
     Generate a candlestick chart with position setup visualization.
     
@@ -44,6 +45,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
         current_price: Current market price
         ema_short: Short EMA period (default 13)
         ema_long: Long EMA period (default 21)
+        exchange: Exchange name (default 'bybit')
         
     Returns:
         BytesIO object containing the chart image
@@ -292,7 +294,8 @@ def generate_chart_with_setup(df: pd.DataFrame,
     
     # Title and formatting with light theme
     timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
-    ax.set_title(f'{symbol} • {timeframe.upper()} • {timestamp}', 
+    exchange_display = exchange.upper() if exchange else 'BYBIT'
+    ax.set_title(f'{symbol} • {timeframe.upper()} • {timestamp} • {exchange_display}', 
                 color='#212121', fontsize=16, pad=20, fontweight='bold')
     
     # Legend - positioned at bottom left with light theme
@@ -328,7 +331,8 @@ def generate_neutral_chart(df: pd.DataFrame,
                            ema21: pd.Series = None,
                            current_price: float = None,
                            ema_short: int = 13,
-                           ema_long: int = 21) -> BytesIO:
+                           ema_long: int = 21,
+                           exchange: str = 'bybit') -> BytesIO:
     """
     Generate a simple chart for neutral signals without trade setup.
     """
@@ -341,5 +345,6 @@ def generate_neutral_chart(df: pd.DataFrame,
         ema21=ema21,
         current_price=current_price,
         ema_short=ema_short,
-        ema_long=ema_long
+        ema_long=ema_long,
+        exchange=exchange
     )

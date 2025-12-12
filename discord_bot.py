@@ -194,7 +194,7 @@ def safe_float(v):
     except Exception:
         return None
 
-def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
+def generate_chart_from_data(data: dict, symbol: str, timeframe: str, exchange: str = 'bybit'):
     """Generate chart from trade plan data dict"""
     try:
         direction = data.get('direction', 'neutral').lower()
@@ -210,7 +210,8 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
                 ema21=data.get('ema21_series'),
                 current_price=data.get('current_price'),
                 ema_short=data.get('ema_short', 13),
-                ema_long=data.get('ema_long', 21)
+                ema_long=data.get('ema_long', 21),
+                exchange=exchange
             )
         else:
             print(f"{LOG_PREFIX} 🎨 Creating signal chart with setup")
@@ -230,7 +231,8 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str):
                 ob_low=data.get('ob_low'),
                 current_price=data.get('current_price'),
                 ema_short=data.get('ema_short', 13),
-                ema_long=data.get('ema_long', 21)
+                ema_long=data.get('ema_long', 21),
+                exchange=exchange
             )
         
         if chart_buf:
@@ -359,15 +361,15 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
             await send_error(ctx_or_message, result)
             return
 
-        symbol_norm = normalize_symbol(symbol)
+        symbol_norm = normalize_symbol(symbol, exchange)
         print(f"{LOG_PREFIX} 📊 Generating chart for {symbol_norm}...")
         
         # Generate chart
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe)
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe, exchange)
         
         # Create embed
         print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
-        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail)
+        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange)
         
         # Send with chart attachment
         if chart_buf:
@@ -397,7 +399,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         await send_error(ctx_or_message, f"⚠️ Error generating signal. Cek log terminal: `{e}`")
         print(tb)
 
-def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False):
+def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit'):
     """Create embed from dict data (new format)"""
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
@@ -417,7 +419,8 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         "1d":"1D","1w":"1W","1M":"1M"
     }
     interval = interval_map.get(timeframe.lower(), "1D")
-    tv_url = f"https://www.tradingview.com/chart/?symbol={data.get('exchange','BYBIT')}:{symbol}&interval={interval}"
+    exchange_upper = exchange.upper()
+    tv_url = f"https://www.tradingview.com/chart/?symbol={exchange_upper}:{symbol}&interval={interval}"
     
     embed = discord.Embed(color=color)
     
@@ -431,6 +434,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         ema_short = data.get('ema_short', 13)
         ema_long = data.get('ema_long', 21)
         embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
         embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
@@ -453,6 +457,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         ema_short = data.get('ema_short', 13)
         ema_long = data.get('ema_long', 21)
         embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
         
         embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
         embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)
@@ -708,10 +713,10 @@ async def scan_command(ctx, *, args: str):
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
         
         # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe)
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
         
         # Create embed with all confidences listed
-        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results)
+        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
         
         # Send response
         if chart_buf:
@@ -722,7 +727,7 @@ async def scan_command(ctx, *, args: str):
         
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
-def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list):
+def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit'):
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
     direction = data.get('direction', 'NETRAL').upper()
@@ -741,7 +746,8 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         "1d":"1D","1w":"1W","1M":"1M"
     }
     interval = interval_map.get(timeframe.lower(), "1D")
-    tv_url = f"https://www.tradingview.com/chart/?symbol={data.get('exchange','BYBIT')}:{symbol}&interval={interval}"
+    exchange_upper = exchange.upper()
+    tv_url = f"https://www.tradingview.com/chart/?symbol={exchange_upper}:{symbol}&interval={interval}"
     
     embed = discord.Embed(color=color)
     
@@ -752,6 +758,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
         embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
         embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
         embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
     else:
         entry_fmt = format_price_dynamic(data.get('entry'))
@@ -769,6 +776,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
         
         embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
         
         embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
         embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)
@@ -1125,10 +1133,10 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
         
         # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe)
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
         
         # Create embed with all confidences listed
-        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results)
+        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
         
         # Send response
         if chart_buf:
