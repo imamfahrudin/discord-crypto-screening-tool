@@ -707,8 +707,9 @@ async def scan_command(ctx, *, args: str):
         best_result = max(results, key=lambda x: x[0])
         best_confidence, best_setup, best_data = best_result
         
-        # Extract timeframe from best setup (format: "$ COIN TIMEFRAME [DIRECTION]")
-        best_timeframe = best_setup.split()[2]
+        # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
+        # Split: ['$BTC', '1h', 'long'] -> index 1 is timeframe
+        best_timeframe = best_setup.split()[1]
         
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
         
@@ -1127,8 +1128,9 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         best_result = max(results, key=lambda x: x[0])
         best_confidence, best_setup, best_data = best_result
         
-        # Extract timeframe from best setup (format: "$ COIN TIMEFRAME [DIRECTION]")
-        best_timeframe = best_setup.split()[2]
+        # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
+        # Split: ['$BTC', '1h', 'long'] -> index 1 is timeframe
+        best_timeframe = best_setup.split()[1]
         
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
         
