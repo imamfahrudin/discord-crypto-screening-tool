@@ -8,6 +8,151 @@ from utils import calculate_rr, format_price_dynamic
 LOG_PREFIX = "[signal_logic]"
 
 # ------------------------------
+# Helper: Divergence Detection
+# ------------------------------
+def detect_divergence(df: pd.DataFrame, lookback: int = 14):
+    """Detect bullish/bearish divergences in RSI and MACD"""
+    print(f"{LOG_PREFIX} 🔍 Detecting divergences in last {lookback} candles")
+    
+    if len(df) < lookback + 5:
+        return {'rsi_bull': False, 'rsi_bear': False, 'macd_bull': False, 'macd_bear': False}
+    
+    recent = df.iloc[-lookback:]
+    
+    # Find pivots in price
+    price_lows = []
+    price_highs = []
+    
+    for i in range(2, len(recent) - 2):
+        # Local low
+        if (recent.iloc[i]['low'] < recent.iloc[i-1]['low'] and 
+            recent.iloc[i]['low'] < recent.iloc[i-2]['low'] and
+            recent.iloc[i]['low'] < recent.iloc[i+1]['low'] and 
+            recent.iloc[i]['low'] < recent.iloc[i+2]['low']):
+            price_lows.append({'idx': i, 'price': recent.iloc[i]['low'], 'rsi': recent.iloc[i]['rsi'], 'macd': recent.iloc[i]['macd_line']})
+        
+        # Local high
+        if (recent.iloc[i]['high'] > recent.iloc[i-1]['high'] and 
+            recent.iloc[i]['high'] > recent.iloc[i-2]['high'] and
+            recent.iloc[i]['high'] > recent.iloc[i+1]['high'] and 
+            recent.iloc[i]['high'] > recent.iloc[i+2]['high']):
+            price_highs.append({'idx': i, 'price': recent.iloc[i]['high'], 'rsi': recent.iloc[i]['rsi'], 'macd': recent.iloc[i]['macd_line']})
+    
+    rsi_bull_div = False
+    rsi_bear_div = False
+    macd_bull_div = False
+    macd_bear_div = False
+    
+    # Bullish divergence: price lower low, indicator higher low
+    if len(price_lows) >= 2:
+        last_low = price_lows[-1]
+        prev_low = price_lows[-2]
+        if last_low['price'] < prev_low['price']:
+            if last_low['rsi'] > prev_low['rsi']:
+                rsi_bull_div = True
+                print(f"{LOG_PREFIX} ✅ Bullish RSI divergence detected")
+            if last_low['macd'] > prev_low['macd']:
+                macd_bull_div = True
+                print(f"{LOG_PREFIX} ✅ Bullish MACD divergence detected")
+    
+    # Bearish divergence: price higher high, indicator lower high
+    if len(price_highs) >= 2:
+        last_high = price_highs[-1]
+        prev_high = price_highs[-2]
+        if last_high['price'] > prev_high['price']:
+            if last_high['rsi'] < prev_high['rsi']:
+                rsi_bear_div = True
+                print(f"{LOG_PREFIX} ✅ Bearish RSI divergence detected")
+            if last_high['macd'] < prev_high['macd']:
+                macd_bear_div = True
+                print(f"{LOG_PREFIX} ✅ Bearish MACD divergence detected")
+    
+    return {
+        'rsi_bull': rsi_bull_div,
+        'rsi_bear': rsi_bear_div,
+        'macd_bull': macd_bull_div,
+        'macd_bear': macd_bear_div
+    }
+
+# ------------------------------
+# Helper: Find Swing Highs/Lows
+# ------------------------------
+def find_swing_points(df: pd.DataFrame, direction: str, lookback: int = 20):
+    """Find recent swing high/low for better stop loss placement"""
+    print(f"{LOG_PREFIX} 🔍 Finding swing points for {direction} direction")
+    
+    if len(df) < lookback:
+        return None
+    
+    recent = df.iloc[-lookback:]
+    
+    if direction == 'long':
+        # Find lowest low in recent candles
+        swing_low = recent['low'].min()
+        print(f"{LOG_PREFIX} 📍 Swing low found: {swing_low:.6f}")
+        return swing_low
+    else:
+        # Find highest high in recent candles
+        swing_high = recent['high'].max()
+        print(f"{LOG_PREFIX} 📍 Swing high found: {swing_high:.6f}")
+        return swing_high
+
+# ------------------------------
+# Helper: Calculate Trend Strength
+# ------------------------------
+def calculate_trend_strength(df: pd.DataFrame, ema_short: int = 13, ema_long: int = 21):
+    """Calculate trend strength using EMA slope and ADX-like metric"""
+    print(f"{LOG_PREFIX} 📊 Calculating trend strength")
+    
+    if len(df) < 20:
+        return {'strength': 0, 'quality': 'WEAK'}
+    
+    recent = df.iloc[-20:]
+    ema_short_col = f'ema{ema_short}'
+    ema_long_col = f'ema{ema_long}'
+    
+    # Calculate EMA slopes (rate of change)
+    ema_short_slope = (recent[ema_short_col].iloc[-1] - recent[ema_short_col].iloc[-5]) / recent[ema_short_col].iloc[-5]
+    ema_long_slope = (recent[ema_long_col].iloc[-1] - recent[ema_long_col].iloc[-5]) / recent[ema_long_col].iloc[-5]
+    
+    # Check if EMAs are aligned and trending
+    ema_separation = abs(recent[ema_short_col].iloc[-1] - recent[ema_long_col].iloc[-1]) / recent['close'].iloc[-1]
+    
+    # Count consecutive candles following trend
+    consecutive_trend = 0
+    for i in range(len(recent) - 1, 0, -1):
+        if recent[ema_short_col].iloc[i] > recent[ema_long_col].iloc[i]:
+            if recent['close'].iloc[i] > recent[ema_short_col].iloc[i]:
+                consecutive_trend += 1
+            else:
+                break
+        elif recent[ema_short_col].iloc[i] < recent[ema_long_col].iloc[i]:
+            if recent['close'].iloc[i] < recent[ema_short_col].iloc[i]:
+                consecutive_trend += 1
+            else:
+                break
+        else:
+            break
+    
+    # Combine factors
+    strength_score = 0
+    strength_score += min(abs(ema_short_slope) * 1000, 30)  # Max 30 points
+    strength_score += min(abs(ema_long_slope) * 1000, 20)   # Max 20 points
+    strength_score += min(ema_separation * 500, 25)         # Max 25 points
+    strength_score += min(consecutive_trend * 2, 25)        # Max 25 points
+    
+    quality = 'WEAK'
+    if strength_score >= 70:
+        quality = 'VERY STRONG'
+    elif strength_score >= 50:
+        quality = 'STRONG'
+    elif strength_score >= 30:
+        quality = 'MODERATE'
+    
+    print(f"{LOG_PREFIX} ✅ Trend strength: {strength_score:.1f}% ({quality})")
+    return {'strength': strength_score, 'quality': quality}
+
+# ------------------------------
 # Helper: FVG / SMC detection
 # ------------------------------
 def detect_fvg(df: pd.DataFrame):
@@ -79,58 +224,81 @@ def calculate_confidence_score(direction,
                                vol_ratio,
                                relevant_fvg, ob_high, ob_low,
                                entry_price, current_price,
+                               divergences=None,
+                               trend_strength=None,
                                ema_short=13, ema_long=21):
     print(f"{LOG_PREFIX} 📊 Calculating confidence score for {direction} direction")
     score = 0
     reasons = []
+    
+    # Initialize defaults
+    if divergences is None:
+        divergences = {'rsi_bull': False, 'rsi_bear': False, 'macd_bull': False, 'macd_bear': False}
+    if trend_strength is None:
+        trend_strength = {'strength': 0, 'quality': 'WEAK'}
 
-    # EMA trend strength
+    # EMA trend strength (ADJUSTED - reduced weight, trend_strength is now primary)
     ema_spread_pct = abs(ema13 - ema21) / (current_price if current_price != 0 else 1) * 100
     if direction == 'long' and ema13 > ema21:
-        score += 12; reasons.append(f"📈 Trend bullish dikonfirmasi EMA{ema_short} di atas EMA{ema_long} (+12)")
+        score += 8; reasons.append(f"📈 Trend bullish dikonfirmasi EMA{ema_short} di atas EMA{ema_long} (+8)")
     elif direction == 'short' and ema13 < ema21:
-        score += 12; reasons.append(f"📉 Trend bearish dikonfirmasi EMA{ema_short} di bawah EMA{ema_long} (+12)")
+        score += 8; reasons.append(f"📉 Trend bearish dikonfirmasi EMA{ema_short} di bawah EMA{ema_long} (+8)")
     elif direction == 'long' and ema13 <= ema21:
-        reasons.append(f"⚠️ EMA{ema_short} masih di bawah EMA{ema_long} - sinyal counter-trend, risiko tinggi (0)")
+        score -= 5; reasons.append(f"⚠️ EMA{ema_short} masih di bawah EMA{ema_long} - counter-trend, risiko sangat tinggi (-5)")
     elif direction == 'short' and ema13 >= ema21:
-        reasons.append(f"⚠️ EMA{ema_short} masih di atas EMA{ema_long} - sinyal counter-trend, risiko tinggi (0)")
+        score -= 5; reasons.append(f"⚠️ EMA{ema_short} masih di atas EMA{ema_long} - counter-trend, risiko sangat tinggi (-5)")
     
     if ema_spread_pct > 1:
-        score += 8; reasons.append(f"🚀 Momentum trend sangat kuat dengan spread {ema_spread_pct:.2f}% (+8)")
+        score += 6; reasons.append(f"🚀 Momentum trend sangat kuat dengan spread {ema_spread_pct:.2f}% (+6)")
     elif ema_spread_pct > 0.5:
-        score += 4; reasons.append(f"⚡ Momentum trend moderat dengan spread {ema_spread_pct:.2f}% (+4)")
+        score += 3; reasons.append(f"⚡ Momentum trend moderat dengan spread {ema_spread_pct:.2f}% (+3)")
     else:
         reasons.append(f"📍 Spread EMA lemah {ema_spread_pct:.2f}% - market consolidation atau trend lemah (0)")
 
-    # MACD
+    # MACD (ENHANCED - with histogram momentum)
     macd_diff = macd_line - macd_signal
+    macd_momentum_score = 0
+    
     if direction == 'long' and macd_diff > 0:
-        score += 12; reasons.append(f"📊 MACD histogram positif - momentum bullish aktif (+12)")
+        macd_momentum_score += 10; reasons.append(f"📊 MACD histogram positif - momentum bullish aktif (+10)")
         if macd_diff > 0.05:
-            score += 8; reasons.append(f"💪 MACD divergence kuat ({macd_diff:.4f}) - strong bullish momentum (+8)")
+            macd_momentum_score += 7; reasons.append(f"💪 MACD histogram sangat kuat ({macd_diff:.4f}) - explosive momentum (+7)")
         elif macd_diff > 0.01:
-            reasons.append(f"📈 MACD histogram positif tapi lemah ({macd_diff:.4f}) - momentum masih building")
+            macd_momentum_score += 3; reasons.append(f"📈 MACD histogram moderat ({macd_diff:.4f}) - momentum building (+3)")
     elif direction == 'short' and macd_diff < 0:
-        score += 12; reasons.append(f"📊 MACD histogram negatif - momentum bearish aktif (+12)")
+        macd_momentum_score += 10; reasons.append(f"📊 MACD histogram negatif - momentum bearish aktif (+10)")
         if macd_diff < -0.05:
-            score += 8; reasons.append(f"💪 MACD divergence kuat ({macd_diff:.4f}) - strong bearish momentum (+8)")
+            macd_momentum_score += 7; reasons.append(f"💪 MACD histogram sangat kuat ({macd_diff:.4f}) - explosive momentum (+7)")
         elif macd_diff < -0.01:
-            reasons.append(f"📉 MACD histogram negatif tapi lemah ({macd_diff:.4f}) - momentum masih building")
+            macd_momentum_score += 3; reasons.append(f"📉 MACD histogram moderat ({macd_diff:.4f}) - momentum building (+3)")
     elif direction == 'long' and macd_diff <= 0:
-        reasons.append(f"🔴 MACD masih negatif ({macd_diff:.4f}) - counter-trend signal, tunggu crossover (0)")
+        macd_momentum_score -= 8; reasons.append(f"🔴 MACD masih negatif ({macd_diff:.4f}) - counter-trend, tunggu crossover (-8)")
     elif direction == 'short' and macd_diff >= 0:
-        reasons.append(f"🔴 MACD masih positif ({macd_diff:.4f}) - counter-trend signal, tunggu crossover (0)")
+        macd_momentum_score -= 8; reasons.append(f"🔴 MACD masih positif ({macd_diff:.4f}) - counter-trend, tunggu crossover (-8)")
+    
+    score += macd_momentum_score
 
-    # RSI
+    # RSI (IMPROVED - context-aware scoring)
+    rsi_score = 0
     if 40 <= rsi <= 60:
-        score += 15; reasons.append(f"✅ RSI netral di {rsi:.1f} - zona ideal untuk entry dengan ruang gerak (+15)")
+        rsi_score += 12; reasons.append(f"✅ RSI netral di {rsi:.1f} - zona ideal dengan ruang gerak optimal (+12)")
+    elif direction == 'long' and 30 <= rsi < 40:
+        rsi_score += 10; reasons.append(f"💎 RSI di {rsi:.1f} - zona oversold ringan, good long entry (+10)")
+    elif direction == 'short' and 60 < rsi <= 70:
+        rsi_score += 10; reasons.append(f"💎 RSI di {rsi:.1f} - zona overbought ringan, good short entry (+10)")
+    elif direction == 'long' and rsi > 70:
+        rsi_score -= 10; reasons.append(f"🔴 RSI overbought di {rsi:.1f} - risiko pullback sangat tinggi untuk long (-10)")
+    elif direction == 'short' and rsi < 30:
+        rsi_score -= 10; reasons.append(f"🔴 RSI oversold di {rsi:.1f} - risiko bounce sangat tinggi untuk short (-10)")
     elif 30 <= rsi < 40 or 60 < rsi <= 70:
-        score += 8; reasons.append(f"⚠️ RSI di {rsi:.1f} - masih acceptable tapi perlu waspada (+8)")
+        rsi_score += 5; reasons.append(f"⚠️ RSI di {rsi:.1f} - masih acceptable tapi ruang terbatas (+5)")
     else:
         if rsi < 30:
-            reasons.append(f"🔴 RSI oversold ekstrem di {rsi:.1f} - risiko reversal tinggi (0)")
+            reasons.append(f"⚠️ RSI oversold ekstrem di {rsi:.1f} - wait for bounce confirmation (0)")
         else:
-            reasons.append(f"🔴 RSI overbought ekstrem di {rsi:.1f} - risiko reversal tinggi (0)")
+            reasons.append(f"⚠️ RSI overbought ekstrem di {rsi:.1f} - wait for rejection confirmation (0)")
+    
+    score += rsi_score
 
     # SMC (FVG / OB)
     smc_score = 0
@@ -290,13 +458,26 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     vol_ratio = None
     if vol_ema20 and current_vol is not None and vol_ema20 > 0:
         vol_ratio = current_vol / vol_ema20
+    
+    # Calculate new metrics
+    print(f"{LOG_PREFIX} 🔬 Analyzing market structure...")
+    divergences = detect_divergence(df, lookback=14)
+    trend_strength = calculate_trend_strength(df, ema_short, ema_long)
 
-    # Auto-side determination (original logic)
+    # Auto-side determination (IMPROVED - with trend strength filter)
     direction = 'neutral'
     if ema13 > ema21 and rsi_val < 70:
         direction = 'long'
     elif ema13 < ema21 and rsi_val > 30:
         direction = 'short'
+    
+    # Filter weak trends unless there's divergence
+    if direction != 'neutral' and trend_strength['quality'] == 'WEAK':
+        has_divergence = (direction == 'long' and (divergences['rsi_bull'] or divergences['macd_bull'])) or \
+                        (direction == 'short' and (divergences['rsi_bear'] or divergences['macd_bear']))
+        if not has_divergence:
+            print(f"{LOG_PREFIX} ⚠️ Trend too weak ({trend_strength['quality']}) and no divergence - setting to neutral")
+            direction = 'neutral'
 
     print(f"{LOG_PREFIX} 📊 Auto-determined direction: {direction} (EMA{ema_short}: {ema13:.6f}, EMA{ema_long}: {ema21:.6f}, RSI: {rsi_val:.2f})")
 
@@ -342,54 +523,87 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
             f"INSIGHT_START\n{indicators_insight}\nINSIGHT_END"
         )
 
+    # Get swing points for better stop placement
+    swing_point = find_swing_points(df, direction, lookback=20)
+    
     if direction == 'long':
+        # Entry logic: prefer FVG retest, otherwise pullback to EMA21
         if relevant_fvg and ob_low:
             entry_price = relevant_fvg['low']
+        else:
+            # Enter on pullback to EMA21 for better entry
+            entry_price = ema21 if current_price > ema21 * 1.005 else current_price
+        
+        # Stop loss: use swing low or OB, whichever is lower
+        if swing_point:
+            stop = swing_point - sl_buffer
+        elif ob_low:
             stop = ob_low - sl_buffer
         else:
-            entry_price = ema21
             stop = entry_price - atr * 2.0
+        
+        # Ensure stop is below entry
+        if stop >= entry_price:
+            stop = entry_price - max(atr * 1.5, entry_price * 0.01)
 
         risk = abs(entry_price - stop)
         if risk < 1e-8:
             stop = entry_price - atr * 2
             risk = abs(entry_price - stop)
 
+        # TP calculation: use recent swing high if available
         lookback_high = df.iloc[-50:]['high'].max()
         if lookback_high > (entry_price + risk * 1.5):
-            tp2 = lookback_high
+            tp2 = lookback_high * 0.99  # Slightly below swing high
         else:
-            tp2 = entry_price + risk * 3.0
+            # Dynamic R:R based on trend strength
+            rr_multiplier = 3.0 if trend_strength['quality'] in ['STRONG', 'VERY STRONG'] else 2.5
+            tp2 = entry_price + risk * rr_multiplier
 
     else:  # short
+        # Entry logic: prefer FVG retest, otherwise pullback to EMA21
         if relevant_fvg and ob_high:
             entry_price = relevant_fvg['high']
+        else:
+            # Enter on pullback to EMA21 for better entry
+            entry_price = ema21 if current_price < ema21 * 0.995 else current_price
+        
+        # Stop loss: use swing high or OB, whichever is higher
+        if swing_point:
+            stop = swing_point + sl_buffer
+        elif ob_high:
             stop = ob_high + sl_buffer
         else:
-            entry_price = ema21
             stop = entry_price + atr * 2.0
+        
+        # Ensure stop is above entry
+        if stop <= entry_price:
+            stop = entry_price + max(atr * 1.5, entry_price * 0.01)
 
         risk = abs(entry_price - stop)
         if risk < 1e-8:
             stop = entry_price + atr * 2
             risk = abs(entry_price - stop)
 
+        # TP calculation: use recent swing low if available
         lookback_low = df.iloc[-50:]['low'].min()
         if lookback_low < (entry_price - risk * 1.5):
-            tp2 = lookback_low
+            tp2 = lookback_low * 1.01  # Slightly above swing low
         else:
-            tp2 = entry_price - risk * 3.0
+            # Dynamic R:R based on trend strength
+            rr_multiplier = 3.0 if trend_strength['quality'] in ['STRONG', 'VERY STRONG'] else 2.5
+            tp2 = entry_price - risk * rr_multiplier
 
     tp1 = entry_price + risk * 1.5 if direction == 'long' else entry_price - risk * 1.5
     rr = calculate_rr(entry_price, stop, tp2)
 
     print(f"{LOG_PREFIX} 📊 Entry/Exit calculated - Entry: {entry_price:.6f}, Stop: {stop:.6f}, TP1: {tp1:.6f}, TP2: {tp2:.6f}, RR: {rr:.2f}")
 
-    # Confidence
+    # Confidence (UPDATED - with new parameters)
     confidence, level, reasons = calculate_confidence_score(
         direction, ema13, ema21, macd_line, macd_signal, rsi_val,
         stoch_k, stoch_d, vol_ratio, relevant_fvg, ob_high, ob_low,
-        entry_price, current_price, ema_short, ema_long
+        entry_price, current_price, divergences, trend_strength, ema_short, ema_long
     )
 
     # Build insight (kept for internal use but may be hidden in embed)
