@@ -164,12 +164,12 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     
     timeframe = timeframe.lower()
     if timeframe not in tf_map:
-        raise ValueError(f"Timeframe {timeframe} invalid. Choose one of {list(tf_map.keys())}")
+        raise ValueError(f"Timeframe {timeframe} tidak valid. Pilih salah satu dari {list(tf_map.keys())}")
     
     interval = tf_map[timeframe]
     
     if not pair_exists(symbol):
-        raise ValueError(f"Pair {symbol} not available in Binance Futures.")
+        raise ValueError(f"Pasangan {symbol} tidak tersedia di Binance Futures.")
     
     retries = 3
     for attempt in range(retries):
@@ -231,7 +231,7 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
             time.sleep(0.5)
             break
     
-    raise ValueError(f"No candle data for {symbol} {timeframe} from Binance")
+    raise ValueError(f"Tidak ada data candle untuk {symbol} {timeframe} dari Binance")
 
 def get_last_price_from_rest(symbol: str):
     """Get last price from Binance Futures"""

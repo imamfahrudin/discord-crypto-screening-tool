@@ -237,13 +237,13 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
     # timeframe validation is expected upstream (discord bot), but keep friendly check
     if timeframe.lower() not in [t.lower() for t in VALID_TFS]:
         print(f"{LOG_PREFIX} ⚠️ Invalid timeframe: {timeframe}")
-        raise ValueError(f"Timeframe {timeframe} invalid. Pilih salah satu {VALID_TFS}")
+        raise ValueError(f"Timeframe {timeframe} tidak valid. Pilih salah satu {VALID_TFS}")
 
     print(f"{LOG_PREFIX} 📊 Fetching OHLC data for {symbol} from {exchange.upper()}")
     df = fetch_ohlc(symbol, timeframe, exchange)
     if df is None or df.empty or len(df) < 50:
         print(f"{LOG_PREFIX} ❌ Insufficient OHLC data: {len(df) if df is not None else 0} candles")
-        raise ValueError("Failed to fetch sufficient OHLC data (need min 50 candles)")
+        raise ValueError("Gagal mengambil data OHLC yang cukup (perlu minimal 50 candle)")
 
     print(f"{LOG_PREFIX} 📈 Calculating technical indicators with EMA periods: {ema_short}/{ema_long}")
     # Indicators
