@@ -667,6 +667,12 @@ async def scan_command(ctx, *, args: str):
     ]
 
     for coin in coins_final:
+        # Check if coin looks like a timeframe or direction - hint to use $ command
+        coin_lower = coin.lower()
+        if coin_lower in [t.lower() for t in valid_tfs] or coin_lower in ('long', 'short'):
+            await send_error(ctx, f"⚠️ '{coin}' terlihat seperti timeframe atau direction. Jika Anda ingin sinyal tunggal, gunakan perintah `$` seperti `$SEI 1d long`.")
+            continue
+        
         print(f"{LOG_PREFIX} 📊 Scanning coin: {coin}")
         
         results = []
@@ -1093,6 +1099,12 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
     ]
 
     for coin in coins_final:
+        # Check if coin looks like a timeframe or direction - hint to use $ command
+        coin_lower = coin.lower()
+        if coin_lower in [t.lower() for t in ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']] or coin_lower in ('long', 'short'):
+            await interaction.followup.send(f"⚠️ '{coin}' terlihat seperti timeframe atau direction. Jika Anda ingin sinyal tunggal, gunakan perintah `$` seperti `$SEI 1d long`.")
+            continue
+        
         print(f"{LOG_PREFIX} 📊 Scanning coin: {coin}")
         
         results = []
