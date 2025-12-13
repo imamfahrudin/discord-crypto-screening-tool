@@ -169,11 +169,11 @@ async def on_message(message):
         if ema_short is not None and ema_long is not None:
             if ema_short >= ema_long:
                 print(f"{LOG_PREFIX} ⚠️ Invalid EMA values: short({ema_short}) >= long({ema_long})")
-                await send_error(message, "⚠️ Short EMA must be less than long EMA.")
+                await send_error(message, "⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
                 return
             if ema_short < 5 or ema_long > 200:
                 print(f"{LOG_PREFIX} ⚠️ EMA values out of range: short({ema_short}), long({ema_long})")
-                await send_error(message, "⚠️ EMA periods must be between 5 and 200.")
+                await send_error(message, "⚠️ Periode EMA harus antara 5 dan 200.")
                 return
 
         print(f"{LOG_PREFIX} 🚀 Generating signal for {symbol} {timeframe} direction={direction} exchange={exchange} ema_short={ema_short} ema_long={ema_long} detail={show_detail}")
@@ -345,9 +345,9 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
     def run_blocking_calls():
         print(f"{LOG_PREFIX} 🔄 Executing blocking signal generation logic")
         symbol_norm = normalize_symbol(symbol)
-        if not pair_exists(symbol_norm):
+        if not pair_exists(symbol_norm, exchange):
             print(f"{LOG_PREFIX} ❌ Pair not available: {symbol_norm}")
-            return f"❌ Pair `{symbol_norm}` not available on Bybit Futures."
+            return f"❌ Pasangan `{symbol_norm}` tidak tersedia di {exchange.upper()}."
         # Get dict data for chart generation
         result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)
         print(f"{LOG_PREFIX} ✅ Signal generation completed for {symbol_norm}")
@@ -391,12 +391,12 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
             pass
     except ValueError as e:
         print(f"{LOG_PREFIX} ⚠️ ValueError in signal generation: {e}")
-        await send_error(ctx_or_message, f"⚠️ Error in input/data: `{e}`")
+        await send_error(ctx_or_message, f"⚠️ Kesalahan dalam input/data: `{e}`")
     except Exception as e:
         tb = traceback.format_exc()
         print(f"{LOG_PREFIX} ❌ Unexpected error in signal generation: {e}")
         print(f"{LOG_PREFIX} 📄 Full traceback:\n{tb}")
-        await send_error(ctx_or_message, f"⚠️ Error generating signal. Cek log terminal: `{e}`")
+        await send_error(ctx_or_message, f"⚠️ Error menghasilkan sinyal. Cek log terminal: `{e}`")
         print(tb)
 
 def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit'):
@@ -567,10 +567,10 @@ async def signal_command(ctx, *args):
     # Validation for EMAs
     if ema_short is not None and ema_long is not None:
         if ema_short >= ema_long:
-            await send_error(ctx, "⚠️ Short EMA must be less than long EMA.")
+            await send_error(ctx, "⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
             return
         if ema_short < 5 or ema_long > 200:
-            await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
+            await send_error(ctx, "⚠️ Periode EMA harus antara 5 dan 200.")
             return
     
     await generate_signal_response(ctx, symbol, timeframe, direction, exchange, ema_short, ema_long, show_detail)
@@ -624,12 +624,12 @@ async def scan_command(ctx, *, args: str):
     coins_final = [c for c in coins_list if c]
     
     if not coins_final:
-        await send_error(ctx, "⚠️ No valid coins provided.")
+        await send_error(ctx, "⚠️ Tidak ada koin yang valid diberikan.")
         return
     
     # Limit to 5 coins per scan to prevent abuse
     if len(coins_final) > 5:
-        await send_error(ctx, f"⚠️ Too many coins! Maximum 5 coins per scan. You provided {len(coins_final)} coins.")
+        await send_error(ctx, f"⚠️ Terlalu banyak koin! Maksimal 5 koin per scan. Anda memberikan {len(coins_final)} koin.")
         return
 
     # Validate EMAs
@@ -650,10 +650,10 @@ async def scan_command(ctx, *, args: str):
 
     # Validation for EMAs
     if ema_short >= ema_long:
-        await send_error(ctx, "⚠️ Short EMA must be less than long EMA.")
+        await send_error(ctx, "⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
         return
     if ema_short < 5 or ema_long > 200:
-        await send_error(ctx, "⚠️ EMA periods must be between 5 and 200.")
+        await send_error(ctx, "⚠️ Periode EMA harus antara 5 dan 200.")
         return
 
     print(f"{LOG_PREFIX} 🔍 Scan command triggered by {ctx.author} for coins: {coins_final} with EMA {ema_short}/{ema_long} on {exchange.upper()}")
@@ -700,7 +700,7 @@ async def scan_command(ctx, *, args: str):
                 continue
         
         if not results:
-            await send_error(ctx, f"⚠️ No valid results for {coin}. Pair may not exist.")
+            await send_error(ctx, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
             continue
         
         # Find the best result (highest confidence)
@@ -821,7 +821,7 @@ async def coinlist_command(ctx, *, args: str = ""):
     try:
         coins = await get_available_coins(exchange=exchange)
         if not coins:
-            await send_error(ctx, "⚠️ No coins available at the moment. Try again later.")
+            await send_error(ctx, "⚠️ Tidak ada koin yang tersedia saat ini. Coba lagi nanti.")
             return
         
         # Split coins into chunks of 100 for pagination
@@ -844,7 +844,7 @@ async def coinlist_command(ctx, *, args: str = ""):
             pass
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Coinlist command error: {e}")
-        await send_error(ctx, f"⚠️ Error fetching coin list: {e}")
+        await send_error(ctx, f"⚠️ Error mengambil daftar koin: {e}")
 
 # ============================
 # Slash Commands
@@ -1010,11 +1010,11 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
     # Validation for EMAs
     if ema_short >= ema_long:
         print(f"{LOG_PREFIX} ⚠️ Invalid EMA values in slash command: short({ema_short}) >= long({ema_long})")
-        await interaction.followup.send("⚠️ Short EMA must be less than long EMA.")
+        await interaction.followup.send("⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
         return
     if ema_short < 5 or ema_long > 200:
         print(f"{LOG_PREFIX} ⚠️ EMA values out of range in slash command: short({ema_short}), long({ema_long})")
-        await interaction.followup.send("⚠️ EMA periods must be between 5 and 200.")
+        await interaction.followup.send("⚠️ Periode EMA harus antara 5 dan 200.")
         return
 
     forced = None
@@ -1059,11 +1059,11 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
     # Validation for EMAs
     if ema_short >= ema_long:
         print(f"{LOG_PREFIX} ⚠️ Invalid EMA values in slash scan: short({ema_short}) >= long({ema_long})")
-        await interaction.followup.send("⚠️ Short EMA must be less than long EMA.")
+        await interaction.followup.send("⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
         return
     if ema_short < 5 or ema_long > 200:
         print(f"{LOG_PREFIX} ⚠️ EMA values out of range in slash scan: short({ema_short}), long({ema_long})")
-        await interaction.followup.send("⚠️ EMA periods must be between 5 and 200.")
+        await interaction.followup.send("⚠️ Periode EMA harus antara 5 dan 200.")
         return
 
     # Parse coins
@@ -1074,12 +1074,12 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
     coins_final = [c for c in coins_list if c]
     
     if not coins_final:
-        await interaction.followup.send("⚠️ No valid coins provided.")
+        await interaction.followup.send("⚠️ Tidak ada koin yang valid diberikan.")
         return
     
     # Limit to 5 coins per scan to prevent abuse
     if len(coins_final) > 5:
-        await interaction.followup.send(f"⚠️ Too many coins! Maximum 5 coins per scan. You provided {len(coins_final)} coins.")
+        await interaction.followup.send(f"⚠️ Terlalu banyak koin! Maksimal 5 koin per scan. Anda memberikan {len(coins_final)} koin.")
         return
 
     print(f"{LOG_PREFIX} 🔍 Processing slash scan for coins: {coins_final} with EMA {ema_short}/{ema_long} on {exchange.upper()}")
@@ -1126,7 +1126,7 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
                 continue
         
         if not results:
-            await interaction.followup.send(f"⚠️ No valid results for {coin}. Pair may not exist.")
+            await interaction.followup.send(f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
             continue
         
         # Find the best result (highest confidence)
@@ -1164,7 +1164,7 @@ async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybi
     # Normalize exchange name
     exchange = exchange.lower()
     if exchange not in ['bybit', 'binance']:
-        await interaction.response.send_message("⚠️ Invalid exchange. Use 'bybit' or 'binance'.", ephemeral=True)
+        await interaction.response.send_message("⚠️ Exchange tidak valid. Gunakan 'bybit' atau 'binance'.", ephemeral=True)
         return
     
     print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")
@@ -1173,7 +1173,7 @@ async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybi
     try:
         coins = await get_available_coins(exchange=exchange)
         if not coins:
-            await interaction.followup.send("⚠️ No coins available at the moment. Try again later.")
+            await interaction.followup.send("⚠️ Tidak ada koin yang tersedia saat ini. Coba lagi nanti.")
             return
         
         # Split coins into chunks of 100 for pagination
@@ -1189,7 +1189,7 @@ async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybi
     
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Slash coinlist command error: {e}")
-        await interaction.followup.send(f"⚠️ Error fetching coin list: {e}")
+        await interaction.followup.send(f"⚠️ Error mengambil daftar koin: {e}")
 
 # ============================
 # Start bot
