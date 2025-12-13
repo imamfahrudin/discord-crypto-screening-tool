@@ -1,9 +1,9 @@
 version: '3.8'
 
 services:
-  discord-crypto-bot:
+  discord-crypto-bot-test:
     build: .
-    container_name: discord-crypto-screening-tool
+    container_name: discord-crypto-screening-tool-test
     env_file: .env
     volumes:
       - ./pairs_cache.json:/app/pairs_cache.json
@@ -11,9 +11,9 @@ services:
     dns:
       - 127.0.0.1
 
-  # discord-crypto-bot-2:
+  # discord-crypto-bot-2-test:
   #   build: .
-  #   container_name: discord-crypto-screening-tool-2
+  #   container_name: discord-crypto-screening-tool-2-test
   #   env_file: .env2
   #   volumes:
   #     - ./pairs_cache.json:/app/pairs_cache.json
