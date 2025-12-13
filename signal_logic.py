@@ -410,6 +410,11 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
         f"{reason_text}"
     )
 
+    # Truncate insight to fit Discord embed field limit (1024 chars max)
+    max_length = 1000
+    if len(indicators_insight) > max_length:
+        indicators_insight = indicators_insight[:max_length] + "\n\n*... (truncated for length)*"
+
     # Return dict or string based on parameter
     if return_dict:
         print(f"{LOG_PREFIX} ✅ Returning dict format for {direction.upper()} signal")
