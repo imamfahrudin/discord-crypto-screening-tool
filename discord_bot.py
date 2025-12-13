@@ -23,6 +23,7 @@ TOKEN = os.environ.get("DISCORD_TOKEN")
 WS_URL = os.environ.get("BYBIT_WS_URL", "wss://stream.bybit.com/v5/public/linear")
 BOT_TITLE_PREFIX = os.environ.get('BOT_TITLE_PREFIX', '💎 CRYPTO SIGNAL —')
 BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
+WARNING_CONTENT = "⚠️ **PERHATIAN!** Sinyal ini menggunakan algoritma yang berbeda dari versi original. Sedang dalam pengujian - hasil mungkin berbeda."
 
 # ============================
 # Discord Setup
@@ -372,15 +373,14 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         embed = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange)
         
         # Send with chart attachment and warning content
-        warning_content = "⚠️ **PERHATIAN!** Sinyal ini menggunakan algoritma yang berbeda dari versi original. Sedang dalam pengujian - hasil mungkin berbeda."
         if chart_buf:
             print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes) and warning")
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-            await send_response(ctx_or_message, content=warning_content, embed=embed, file=file)
+            await send_response(ctx_or_message, content=WARNING_CONTENT, embed=embed, file=file)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
         else:
             print(f"{LOG_PREFIX} 📤 Sending response without chart but with warning")
-            await send_response(ctx_or_message, content=warning_content, embed=embed)
+            await send_response(ctx_or_message, content=WARNING_CONTENT, embed=embed)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
             
         # Add success reaction
@@ -730,9 +730,9 @@ async def scan_command(ctx, *, args: str):
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
-            await send_response(ctx, embed=embed, file=file)
+            await send_response(ctx, content=WARNING_CONTENT, embed=embed, file=file)
         else:
-            await send_response(ctx, embed=embed)
+            await send_response(ctx, content=WARNING_CONTENT, embed=embed)
         
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
