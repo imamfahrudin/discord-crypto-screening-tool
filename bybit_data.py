@@ -187,10 +187,10 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     }
     timeframe = timeframe.lower()
     if timeframe not in tf_map:
-        raise ValueError(f"Timeframe {timeframe} invalid. Choose one of {list(tf_map.keys())}")
+        raise ValueError(f"Timeframe {timeframe} tidak valid. Pilih salah satu dari {list(tf_map.keys())}")
     interval = tf_map[timeframe]
     if not pair_exists(symbol):
-        raise ValueError(f"Pair {symbol} not available in Bybit Futures (linear).") 
+        raise ValueError(f"Pasangan {symbol} tidak tersedia di Bybit Futures (linear).") 
     for domain in ['api.bybit.com','api.bybitglobal.com']:
         print(f"{LOG_PREFIX} 🔗 Trying domain: {domain}")
         retries = 3
@@ -229,7 +229,7 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
                 print(f"{LOG_PREFIX} ❌ Unexpected error on {domain}: {e}")
                 time.sleep(0.5)
                 break
-    raise ValueError(f"No candle data for {symbol} {timeframe}")
+    raise ValueError(f"Tidak ada data candle untuk {symbol} {timeframe}")
 
 def get_last_price_from_rest(symbol: str):
     symbol = normalize_symbol(symbol)
