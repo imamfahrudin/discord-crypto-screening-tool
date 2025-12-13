@@ -371,15 +371,16 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
         embed = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange)
         
-        # Send with chart attachment
+        # Send with chart attachment and warning content
+        warning_content = "⚠️ **PERHATIAN!** Sinyal ini menggunakan algoritma yang berbeda dari versi original. Sedang dalam pengujian - hasil mungkin berbeda."
         if chart_buf:
-            print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
+            print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes) and warning")
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-            await send_response(ctx_or_message, embed=embed, file=file)
+            await send_response(ctx_or_message, content=warning_content, embed=embed, file=file)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
         else:
-            print(f"{LOG_PREFIX} 📤 Sending response without chart")
-            await send_response(ctx_or_message, embed=embed)
+            print(f"{LOG_PREFIX} 📤 Sending response without chart but with warning")
+            await send_response(ctx_or_message, content=warning_content, embed=embed)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
             
         # Add success reaction
