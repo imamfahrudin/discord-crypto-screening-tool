@@ -597,6 +597,7 @@ async def scan_command(ctx, *, args: str):
     coins = []
     emas = []
     exchange = "bybit"  # Default exchange
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
 
     for part in parts:
         part_lower = part.lower()
