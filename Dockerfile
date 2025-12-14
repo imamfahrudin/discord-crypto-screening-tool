@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y curl && \
 
 COPY . .
 
-# Create empty cache files to prevent Docker from creating directories
-RUN echo '{}' > pairs_cache.json && echo '{}' > binance_pairs_cache.json
+# Copy and set permissions for entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1
-CMD ["sh", "-c", "cloudflared proxy-dns --upstream https://1.1.1.1/dns-query --port 53 & python -u discord_bot.py"]
+ENTRYPOINT ["/entrypoint.sh"]
