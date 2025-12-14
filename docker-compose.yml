@@ -7,9 +7,12 @@ services:
     env_file: .env
     volumes:
       - ./pairs_cache.json:/app/pairs_cache.json
+      - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
     restart: unless-stopped
     dns:
       - 127.0.0.1
+    networks:
+      - bot1-network
 
   # discord-crypto-bot-2-test:
   #   build: .
@@ -17,6 +20,13 @@ services:
   #   env_file: .env2
   #   volumes:
   #     - ./pairs_cache.json:/app/pairs_cache.json
+  #     - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
   #   restart: unless-stopped
   #   dns:
   #     - 127.0.0.1
+  #   networks:
+  #     - bot2-network
+
+networks:
+  bot1-network:
+  bot2-network:
