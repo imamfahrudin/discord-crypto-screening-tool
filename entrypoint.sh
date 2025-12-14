@@ -1,14 +1,17 @@
 #!/bin/sh
 
+# Create data directory if it doesn't exist
+mkdir -p /app/data
+
 # Create cache files if they don't exist
-if [ ! -f /app/pairs_cache.json ]; then
-    echo '{}' > /app/pairs_cache.json
-    echo "Created pairs_cache.json"
+if [ ! -f /app/data/pairs_cache.json ]; then
+    echo '{}' > /app/data/pairs_cache.json
+    echo "Created data/pairs_cache.json"
 fi
 
-if [ ! -f /app/binance_pairs_cache.json ]; then
-    echo '{}' > /app/binance_pairs_cache.json
-    echo "Created binance_pairs_cache.json"
+if [ ! -f /app/data/binance_pairs_cache.json ]; then
+    echo '{}' > /app/data/binance_pairs_cache.json
+    echo "Created data/binance_pairs_cache.json"
 fi
 
 # Start cloudflared and the bot

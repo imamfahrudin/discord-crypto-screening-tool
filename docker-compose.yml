@@ -6,8 +6,7 @@ services:
     container_name: discord-crypto-screening-tool-test
     env_file: .env
     volumes:
-      - ./pairs_cache.json:/app/pairs_cache.json
-      - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
+      - ./data:/app/data
     restart: unless-stopped
     dns:
       - 127.0.0.1
@@ -19,8 +18,7 @@ services:
   #   container_name: discord-crypto-screening-tool-2-test
   #   env_file: .env2
   #   volumes:
-  #     - ./pairs_cache.json:/app/pairs_cache.json
-  #     - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
+  #     - ./data:/app/data
   #   restart: unless-stopped
   #   dns:
   #     - 127.0.0.1

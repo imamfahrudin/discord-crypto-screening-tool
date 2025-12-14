@@ -33,7 +33,7 @@ def _create_session():
 _SESSION = _create_session()
 
 _PAIRS_CACHE = None
-CACHE_FILE = os.path.join(os.path.dirname(__file__), 'pairs_cache.json')
+CACHE_FILE = os.path.join(os.path.dirname(__file__), 'data', 'pairs_cache.json')
 CACHE_EXPIRY = 3600  # 1 hour in seconds
 
 BYBIT_URLS = [
