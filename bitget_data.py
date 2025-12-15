@@ -68,8 +68,9 @@ def get_all_pairs(force_refresh=False):
     pairs = []
     
     try:
-        url = f"{BITGET_BASE_URL}/api/mix/v1/market/contracts"
-        params = {'productType': 'umcbl'}  # USDT-M futures
+        # Bitget v2 API endpoint for USDT-M futures
+        url = f"{BITGET_BASE_URL}/api/v2/mix/market/contracts"
+        params = {'productType': 'USDT-FUTURES'}  # Changed from umcbl to USDT-FUTURES
         resp = _SESSION.get(url, params=params, timeout=(10, 30))
         resp.raise_for_status()
         data = resp.json()
@@ -84,11 +85,10 @@ def get_all_pairs(force_refresh=False):
                     quote_coin = symbol_info.get('quoteCoin', '')
                     
                     # Only get USDT perpetual futures
-                    if quote_coin == 'USDT' and symbol.endswith('_UMCBL'):
-                        # Convert from Bitget format (BTCUSDT_UMCBL) to standard (BTCUSDT)
-                        standard_symbol = symbol.replace('_UMCBL', '')
-                        if standard_symbol not in pairs:
-                            pairs.append(standard_symbol)
+                    # Bitget v2 format is just BTCUSDT (no _UMCBL suffix)
+                    if quote_coin == 'USDT' and symbol.endswith('USDT'):
+                        if symbol not in pairs:
+                            pairs.append(symbol)
             
             print(f"{LOG_PREFIX} 📊 Fetched {len(pairs)} trading pairs from Bitget Futures")
     except Exception as e:
@@ -149,20 +149,20 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     symbol = normalize_symbol(symbol)
     print(f"{LOG_PREFIX} 📈 Fetching OHLC for {symbol} {timeframe}")
     
-    # Bitget interval mapping
+    # Bitget interval mapping for v2 API
     tf_map = {
         '1m': '1m',
         '3m': '3m',
         '5m': '5m',
         '15m': '15m',
         '30m': '30m',
-        '1h': '1H',
-        '2h': '2H',
-        '4h': '4H',
-        '6h': '6H',
-        '12h': '12H',
-        '1d': '1D',
-        '1w': '1W',
+        '1h': '1h',
+        '2h': '2h',
+        '4h': '4h',
+        '6h': '6h',
+        '12h': '12h',
+        '1d': '1d',
+        '1w': '1week',
         '1M': '1M'
     }
     
@@ -171,18 +171,19 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         print(f"{LOG_PREFIX} ❌ Invalid timeframe: {timeframe}")
         raise ValueError(f"Invalid timeframe {timeframe}")
     
-    # Bitget uses symbol format with _UMCBL suffix for API calls
-    bitget_symbol = f"{symbol}_UMCBL"
+    # Bitget v2 API uses symbol without suffix (just BTCUSDT)
+    bitget_symbol = symbol
     
-    # Calculate end time (current time) and limit
+    # Calculate end time (current time) in milliseconds
     end_time = int(time.time() * 1000)
     
-    url = f"{BITGET_BASE_URL}/api/mix/v1/market/candles"
+    # Bitget v2 API endpoint
+    url = f"{BITGET_BASE_URL}/api/v2/mix/market/candles"
     params = {
         'symbol': bitget_symbol,
         'granularity': interval,
-        'limit': min(limit, 1000),  # Bitget max is 1000
-        'endTime': end_time
+        'limit': str(min(limit, 1000)),  # Bitget max is 1000
+        'productType': 'USDT-FUTURES'
     }
     
     try:
@@ -199,9 +200,9 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
             print(f"{LOG_PREFIX} ⚠️ No candle data returned for {symbol}")
             raise Exception(f"No candle data for {symbol}")
         
-        # Bitget returns: [timestamp, open, high, low, close, volume, usdtVol]
+        # Bitget v2 returns: [timestamp, open, high, low, close, baseVol, quoteVol]
         # Convert to DataFrame
-        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'usdtVol'])
+        df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'quoteVol'])
         
         # Convert data types
         df['timestamp'] = pd.to_numeric(df['timestamp'], errors='coerce')
@@ -217,8 +218,8 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         # Sort by timestamp ascending (oldest first)
         df = df.sort_values('timestamp', ascending=True).reset_index(drop=True)
         
-        # Drop the usdtVol column as it's not needed
-        df = df.drop('usdtVol', axis=1)
+        # Drop the quoteVol column as it's not needed
+        df = df.drop('quoteVol', axis=1)
         
         print(f"{LOG_PREFIX} ✅ Fetched {len(df)} candles for {symbol} {timeframe}")
         return df
@@ -230,13 +231,18 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
 def get_last_price_from_rest(symbol: str):
     """Get last price for a symbol from Bitget REST API"""
     symbol = normalize_symbol(symbol)
-    bitget_symbol = f"{symbol}_UMCBL"
+    # Bitget v2 API uses symbol without suffix
+    bitget_symbol = symbol
     
     print(f"{LOG_PREFIX} 💰 Fetching last price for {symbol}")
     
     try:
-        url = f"{BITGET_BASE_URL}/api/mix/v1/market/ticker"
-        params = {'symbol': bitget_symbol}
+        # Bitget v2 API endpoint for ticker
+        url = f"{BITGET_BASE_URL}/api/v2/mix/market/ticker"
+        params = {
+            'symbol': bitget_symbol,
+            'productType': 'USDT-FUTURES'
+        }
         resp = _SESSION.get(url, params=params, timeout=(10, 30))
         resp.raise_for_status()
         data = resp.json()
@@ -245,9 +251,11 @@ def get_last_price_from_rest(symbol: str):
             print(f"{LOG_PREFIX} ❌ API error: {data.get('msg', 'Unknown error')}")
             return None
         
-        ticker_data = data.get('data', {})
-        if ticker_data:
-            last_price = float(ticker_data.get('last', 0))
+        # v2 API returns array of tickers
+        ticker_list = data.get('data', [])
+        if ticker_list and len(ticker_list) > 0:
+            ticker_data = ticker_list[0]
+            last_price = float(ticker_data.get('lastPr', 0))
             print(f"{LOG_PREFIX} ✅ Last price for {symbol}: {last_price}")
             return last_price
         else:
