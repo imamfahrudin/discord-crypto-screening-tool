@@ -106,7 +106,7 @@ async def on_message(message):
             part_lower = part.lower()
             
             # Check if it's an exchange
-            if part_lower in ('binance', 'bybit'):
+            if part_lower in ('binance', 'bybit', 'bitget'):
                 exchange = part_lower
                 print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
                 continue
@@ -519,7 +519,7 @@ async def signal_command(ctx, *args):
         part_lower = part.lower()
         
         # Check if it's an exchange
-        if part_lower in ('binance', 'bybit'):
+        if part_lower in ('binance', 'bybit', 'bitget'):
             exchange = part_lower
             print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
             continue
@@ -923,6 +923,7 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
             "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
             "• `!signal BTC binance` → Gunakan data Binance Futures\n"
+            "• `!signal BTC bitget` → Gunakan data Bitget Futures\n"
             "• `!scan BTC,ETH,SOL` → Scan BTC, ETH, SOL; pilih setup terbaik per coin\n"
             "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50"
         ),
@@ -934,13 +935,14 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "• `!scan BTC ETH SOL ema20 ema50` → Format fleksibel tanpa koma\n"
             "• `!scan BTC ETH binance` → Scan dengan data Binance\n"
+            "• `!scan BTC ETH bitget` → Scan dengan data Bitget\n"
             "• `/scan BTC,ETH,SOL` → Slash scan untuk BTC, ETH, SOL\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
             "• `$BTC 1h detail` → Cepat dengan analisis detail\n"
-            "• `$BTC binance` → Cepat dengan data Binance\n"
+            "• `$BTC bitget` → Cepat dengan data Bitget\n"
             "• `/signal` → Slash command interaktif (support custom EMA)"
         ),
         inline=True
@@ -951,7 +953,7 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
             "**⏱️ TIMEFRAME**: Optional, default 1h. Lihat kolom sebelah kiri untuk pilihan\n"
-            "**🏦 EXCHANGE**: Optional, default Bybit. Pilih 'binance' untuk Binance Futures\n"
+            "**🏦 EXCHANGE**: Optional, default Bybit. Pilih 'binance' atau 'bitget'\n"
             "**📈 DIRECTION**: Auto (default), Long, Short\n"
             "**📊 EMA**: Optional, default 13/21. Custom EMA untuk scan dan signal\n"
             "**📊 DETAIL**: Tambahkan 'detail' untuk analisis lengkap"
@@ -965,15 +967,15 @@ async def slash_help(interaction: discord.Interaction):
             "• Gunakan timeframe yang sesuai dengan gaya trading Anda\n"
             "• Signal auto akan memilih arah terbaik berdasarkan analisis\n"
             "• Chart akan dilampirkan otomatis dengan setup lengkap\n"
-            "• Bot mendukung data dari Bybit dan Binance Futures\n"
+            "• Bot mendukung data dari Bybit, Binance, dan Bitget Futures\n"
             "• Tambahkan 'detail' untuk melihat analisis teknikal mendalam\n"
-            "• Tambahkan 'binance' untuk menggunakan data Binance Futures"
+            "• Tambahkan 'binance' atau 'bitget' untuk menggunakan exchange lain"
         ),
         inline=False
     )
     
     embed.set_footer(
-        text="📊 Data dari Bybit & Binance Futures • 🔍 Menggunakan RSI & EMA • 🎓 Untuk tujuan edukasi"
+        text="📊 Data dari Bybit, Binance & Bitget Futures • 🔍 Menggunakan RSI & EMA • 🎓 Untuk tujuan edukasi"
     )
     
     embed.set_author(
@@ -997,7 +999,7 @@ async def slash_help(interaction: discord.Interaction):
     ema_short="Short EMA period (default: 13)",
     ema_long="Long EMA period (default: 21)",
     detail="Show detailed analysis (default: False)",
-    exchange="Exchange to use (binance or bybit, default: bybit)"
+    exchange="Exchange to use (binance, bybit, or bitget, default: bybit)"
 )
 @discord.app_commands.choices(timeframe=[
     discord.app_commands.Choice(name="1m", value="1m"),
@@ -1016,7 +1018,8 @@ async def slash_help(interaction: discord.Interaction):
 ])
 @discord.app_commands.choices(exchange=[
     discord.app_commands.Choice(name="Bybit", value="bybit"),
-    discord.app_commands.Choice(name="Binance", value="binance")
+    discord.app_commands.Choice(name="Binance", value="binance"),
+    discord.app_commands.Choice(name="Bitget", value="bitget")
 ])
 async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21, detail: bool = False, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} ⚡ Slash signal command triggered by {interaction.user}: symbol={symbol}, timeframe={timeframe}, direction={direction}, ema_short={ema_short}, ema_long={ema_long}, detail={detail}, exchange={exchange}")
@@ -1061,11 +1064,12 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
     coins="Coins to scan (comma or space separated, max 5)",
     ema_short="Short EMA period (default: 13)",
     ema_long="Long EMA period (default: 21)",
-    exchange="Exchange to use (binance or bybit, default: bybit)"
+    exchange="Exchange to use (binance, bybit, or bitget, default: bybit)"
 )
 @discord.app_commands.choices(exchange=[
     discord.app_commands.Choice(name="Bybit", value="bybit"),
-    discord.app_commands.Choice(name="Binance", value="binance")
+    discord.app_commands.Choice(name="Binance", value="binance"),
+    discord.app_commands.Choice(name="Bitget", value="bitget")
 ])
 async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: int = 13, ema_long: int = 21, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} 🔍 Slash scan command triggered by {interaction.user}: coins='{coins}', ema_short={ema_short}, ema_long={ema_long}, exchange={exchange}")
@@ -1183,14 +1187,14 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
     print(f"{LOG_PREFIX} ✅ Slash scan command completed")
 
 @tree.command(name="coinlist", description="List all available coins for trading signals")
-@discord.app_commands.describe(exchange="Exchange to list coins from (bybit/binance, default: bybit)")
+@discord.app_commands.describe(exchange="Exchange to list coins from (bybit/binance/bitget, default: bybit)")
 async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} 📋 Slash coinlist command triggered by {interaction.user}")
     
     # Normalize exchange name
     exchange = exchange.lower()
-    if exchange not in ['bybit', 'binance']:
-        await interaction.response.send_message("⚠️ Exchange tidak valid. Gunakan 'bybit' atau 'binance'.", ephemeral=True)
+    if exchange not in ['bybit', 'binance', 'bitget']:
+        await interaction.response.send_message("⚠️ Exchange tidak valid. Gunakan 'bybit', 'binance', atau 'bitget'.", ephemeral=True)
         return
     
     print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")

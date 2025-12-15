@@ -10,6 +10,7 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 
 - **Real-time Signal Generation**: Analyzes crypto pairs using RSI and EMA indicators
 - **Discord Integration**: Posts trading signals directly to Discord channels
+- **Multi-Exchange Support**: Support for Bybit, Binance, and Bitget Futures
 - **WebSocket Price Feeds**: Real-time price data from Bybit exchange
 - **Modern Slash Commands**: Interactive commands with dropdown menus for easy use
 - **Chart Generation**: Visual position setup with entry/SL/TP levels, FVG zones, EMAs, and volume bars
@@ -187,13 +188,12 @@ The bot supports the following timeframes: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h,
 The bot supports both traditional prefix commands and modern slash commands:
 
 #### Prefix Commands
-- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [detail]` - General signal check with flexible parameters
-- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [detail]` - Specific direction signal check
-- `!scan {coin1 coin2 ...} [ema_short] [ema_long]` - Scan multiple coins (max 5) and select best setup per coin
-- `!coinlist` - Display paginated list of available trading coins
+- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [binance|bitget] [detail]` - General signal check with flexible parameters
+- `!scan {coin1 coin2 ...} [ema_short] [ema_long] [binance|bitget]` - Scan multiple coins (max 5) and select best setup per coin
+- `!coinlist [binance|bitget]` - Display paginated list of available trading coins
 
 #### Quick Commands ($ Prefix)
-- `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [detail]` - Quick signal check with flexible parameters
+- `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [binance|bitget] [detail]` - Quick signal check with flexible parameters
 
 #### Slash Commands (Recommended)
 The bot now supports Discord's modern slash commands with dropdown helpers:
@@ -211,16 +211,21 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 - **Autocomplete** for trading pair symbols
 
 **Examples:**
-- `!signal BTC` - Check for signals on BTC/USDT 1h (default timeframe)
+- `!signal BTC` - Check for signals on BTC/USDT 1h (default timeframe, Bybit)
 - `!signal BTC 1h` - Check for both long and short signals on BTC/USDT 1-hour chart
 - `!signal BTC 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
+- `!signal BTC binance` - Check signals using Binance Futures data
+- `!signal BTC bitget` - Check signals using Bitget Futures data
 - `!signal ETH 4h short ema20 ema50` - Check for short signals with custom EMA 20/50
 - `!signal SOL long ema9 ema21 4h detail` - Flexible parameter order with detailed analysis
-- `!scan BTC ETH SOL` - Scan BTC, ETH, SOL and show best setup for each
-- `!scan BTC,ETH ema20 ema50` - Scan with custom EMA periods
-- `!coinlist` - Show paginated list of all available coins
-- `$BTC` - Quick check for BTC signals (1h default)
-- `$ETH 4h long ema20 ema50 detail` - Quick command with all parameters
+- `!scan BTC ETH SOL` - Scan BTC, ETH, SOL and show best setup for each (Bybit)
+- `!scan BTC,ETH ema20 ema50 binance` - Scan with custom EMA periods using Binance
+- `!scan BTC ETH bitget` - Scan BTC and ETH using Bitget Futures
+- `!coinlist` - Show paginated list of all available coins (Bybit)
+- `!coinlist binance` - Show coins from Binance Futures
+- `!coinlist bitget` - Show coins from Bitget Futures
+- `$BTC` - Quick check for BTC signals (1h default, Bybit)
+- `$ETH 4h long ema20 ema50 bitget detail` - Quick command with all parameters using Bitget
 - `/signal` - Use the interactive slash command with dropdowns
 - `/scan` - Interactive multi-coin scanning
 - `/coinlist` - Paginated coin list
@@ -229,6 +234,7 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 **Supported Parameters:**
 - **COIN**: Cryptocurrency symbol (e.g., BTC, ETH, HYPE). USDT is automatically added.
 - **TIMEFRAME**: Optional, default 1h. Supported: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
+- **EXCHANGE**: Optional, default Bybit. Supported: bybit, binance, bitget
 - **DIRECTION**: Auto (default), Long, or Short
 - **EMA_SHORT**: Short EMA period (default: 13, range: 5-200)
 - **EMA_LONG**: Long EMA period (default: 21, range: 5-200)
@@ -354,6 +360,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [Discord.py](https://github.com/Rapptz/discord.py) for Discord API integration
 - [Bybit](https://www.bybit.com/) for exchange data
+- [Binance](https://www.binance.com/) for Binance Futures data
+- [Bitget](https://www.bitget.com/) for Bitget Futures data
 - [TA Library](https://github.com/bukosabino/ta) for technical analysis
 - [pandas](https://pandas.pydata.org/) for data manipulation
 

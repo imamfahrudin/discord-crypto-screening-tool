@@ -122,3 +122,4 @@ Thumbs.db
 config.json
 bybit_pairs_cache.json
 binance_pairs_cache.json
+bitget_pairs_cache.json
