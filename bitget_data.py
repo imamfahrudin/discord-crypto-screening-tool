@@ -176,14 +176,22 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     
     # Calculate end time (current time) in milliseconds
     end_time = int(time.time() * 1000)
+    # Calculate start time (limit candles back)
+    interval_ms = {
+        '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000,
+        '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '12h': 43200000,
+        '1d': 86400000, '1week': 604800000, '1M': 2592000000
+    }
+    start_time = end_time - (interval_ms.get(interval, 3600000) * limit)
     
-    # Bitget v2 API endpoint
+    # Bitget v2 API endpoint - uses different format
     url = f"{BITGET_BASE_URL}/api/v2/mix/market/candles"
     params = {
         'symbol': bitget_symbol,
+        'productType': 'USDT-FUTURES',
         'granularity': interval,
-        'limit': str(min(limit, 1000)),  # Bitget max is 1000
-        'productType': 'USDT-FUTURES'
+        'startTime': str(start_time),
+        'endTime': str(end_time)
     }
     
     try:
