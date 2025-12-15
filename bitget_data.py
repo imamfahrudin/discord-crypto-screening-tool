@@ -176,8 +176,7 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     bitget_symbol = symbol
     
     # Calculate time range in milliseconds
-    # Bitget API expects: endTime (oldest) and startTime (newest) - YES, IT'S BACKWARDS!
-    # Get current time as the "start" (newest point)
+    # Bitget uses NORMAL convention: startTime = oldest, endTime = newest
     current_time = int(time.time() * 1000)
     
     # Calculate milliseconds per interval (use Bitget format keys)
@@ -191,14 +190,14 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     duration_ms = interval_ms.get(interval, 3600000) * limit
     oldest_time = current_time - duration_ms
     
-    # Bitget v2 API endpoint - NOTE: startTime is NEWEST, endTime is OLDEST
+    # Bitget v2 API endpoint - NORMAL convention: startTime = oldest, endTime = newest
     url = f"{BITGET_BASE_URL}/api/v2/mix/market/candles"
     params = {
         'symbol': bitget_symbol,
         'productType': 'USDT-FUTURES',
         'granularity': interval,
-        'startTime': str(current_time),  # Newest timestamp
-        'endTime': str(oldest_time)      # Oldest timestamp
+        'startTime': str(oldest_time),   # OLDEST timestamp (start of range)
+        'endTime': str(current_time)     # NEWEST timestamp (end of range)
     }
     
     print(f"{LOG_PREFIX} 🔍 DEBUG - Request parameters:")
