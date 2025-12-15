@@ -827,12 +827,18 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
 async def coinlist_command(ctx, *, args: str = ""):
     """
     List all available coins for trading signals.
-    Usage: !coinlist [binance]
+    Usage: !coinlist [binance|bitget]
     """
     print(f"{LOG_PREFIX} 📋 Coinlist command triggered by {ctx.author}")
     
     # Parse exchange (default to bybit)
-    exchange = 'binance' if 'binance' in args.lower() else 'bybit'
+    args_lower = args.lower()
+    if 'binance' in args_lower:
+        exchange = 'binance'
+    elif 'bitget' in args_lower:
+        exchange = 'bitget'
+    else:
+        exchange = 'bybit'
     print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")
     
     try:
