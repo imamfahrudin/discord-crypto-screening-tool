@@ -173,9 +173,13 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         raise ValueError(f"Invalid timeframe {timeframe}")
     
     # Adjust limit for longer timeframes to avoid exceeding API time range limits
-    # Bitget API has maximum time range restrictions
-    if timeframe.lower() in ['1d', '1w', '1M']:
-        limit = min(limit, 200)  # Reduce to 200 candles max for daily/weekly/monthly
+    # Bitget API has very strict maximum time range restrictions
+    # Based on testing, daily timeframes seem limited to ~90 days maximum
+    if timeframe.lower() == '1d':
+        limit = min(limit, 90)  # Max 90 days for daily candles
+        print(f"{LOG_PREFIX} ⚙️ Adjusted limit to {limit} for {timeframe} timeframe (max ~3 months)")
+    elif timeframe.lower() in ['1w', '1M']:
+        limit = min(limit, 100)  # Max 100 candles for weekly/monthly
         print(f"{LOG_PREFIX} ⚙️ Adjusted limit to {limit} for {timeframe} timeframe")
     
     # Bitget v2 API uses symbol without suffix (just BTCUSDT)
