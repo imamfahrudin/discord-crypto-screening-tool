@@ -83,6 +83,13 @@ async def on_message(message):
             await send_error(message, "⚠️ Format: `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [binance] [detail]`\nCoin harus di depan, timeframe default 1h jika tidak ditentukan.\nContoh: `$BTC` atau `$ETH 4h long ema20 ema50` atau `$BTC binance` atau `$BTC detail`")
             return
 
+        # Check if this looks like an unsupported command (like $scan)
+        first_part = parts[0].lower()
+        if first_part in ('scan', 'signal', 'coinlist', 'help'):
+            print(f"{LOG_PREFIX} ⚠️ Unsupported $ command: ${first_part}")
+            await send_error(message, f"⚠️ Perintah `${first_part}` tidak didukung dengan prefix `$`.\n\nGunakan:\n• `!{first_part}` untuk command biasa\n• `/{first_part}` untuk slash command\n• `$COIN` untuk sinyal cepat (contoh: `$BTC` atau `$ETH 4h long`)")
+            return
+
         symbol = parts[0].upper()
         remaining_parts = parts[1:]
         print(f"{LOG_PREFIX} 📊 Parsed symbol: {symbol}, remaining parts: {remaining_parts}")
