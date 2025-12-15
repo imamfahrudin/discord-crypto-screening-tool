@@ -4,6 +4,8 @@ import json
 import os
 import traceback
 from datetime import datetime, timezone
+import time
+import asyncio
 import re
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
@@ -874,6 +876,61 @@ async def coinlist_command(ctx, *, args: str = ""):
         print(f"{LOG_PREFIX} ❌ Coinlist command error: {e}")
         await send_error(ctx, f"⚠️ Error mengambil daftar koin: {e}")
 
+@bot.command(name="ping")
+async def ping_command(ctx):
+    """
+    Check bot latency and benchmark exchange response times for $BTC command.
+    """
+    print(f"{LOG_PREFIX} 🏓 Ping command triggered by {ctx.author}")
+    
+    # Measure bot latency
+    latency = round(bot.latency * 1000)
+    
+    # Benchmark exchanges in parallel (non-blocking)
+    exchanges = ['bybit', 'binance', 'bitget', 'gateio']
+    benchmark_results = {}
+
+    async def bench_exchange(exch: str, timeout: int = 20):
+        """Run generate_trade_plan in a threadpool for the given exchange and return ms or 'Error' on failure/timeout."""
+        loop = bot.loop
+        start = time.time()
+        try:
+            coro = loop.run_in_executor(None, lambda: generate_trade_plan("BTC", "1h", exch, forced_direction=None, return_dict=True, ema_short=13, ema_long=21))
+            # enforce timeout for each exchange
+            result = await asyncio.wait_for(coro, timeout=timeout)
+            if isinstance(result, str):
+                return exch, "Error"
+            elapsed = round((time.time() - start) * 1000)
+            return exch, elapsed
+        except asyncio.TimeoutError:
+            return exch, "Timeout"
+        except Exception:
+            return exch, "Error"
+
+    # schedule all benchmarks concurrently
+    tasks = [asyncio.create_task(bench_exchange(ex)) for ex in exchanges]
+    results = await asyncio.gather(*tasks)
+    for exch, value in results:
+        benchmark_results[exch] = value
+    
+    # Create embed
+    embed = discord.Embed(
+        title="🏓 Bot Ping & Exchange Benchmark",
+        description="Measuring bot response time and exchange signal generation speed for $BTC command",
+        color=0x00FF88
+    )
+    embed.add_field(name="🤖 Bot Latency", value=f"`{latency} ms`", inline=False)
+    for exchange, time_taken in benchmark_results.items():
+        if time_taken == "Error":
+            embed.add_field(name=f"🏦 {exchange.upper()}", value="`Error`", inline=True)
+        else:
+            embed.add_field(name=f"🏦 {exchange.upper()}", value=f"`{time_taken} ms`", inline=True)
+    
+    embed.set_footer(text=f"{BOT_FOOTER_NAME}")
+    
+    await ctx.send(embed=embed)
+    print(f"{LOG_PREFIX} ✅ Ping command completed")
+
 # ============================
 # Slash Commands
 # ============================
@@ -913,6 +970,15 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`$ {coin} [timeframe] detail`** - Perintah cepat dengan analisis detail\n"
             "🔹 **`!coinlist [binance]`** - Lihat daftar coin yang tersedia\n"
             "🔹 **`/coinlist [exchange]`** - Slash command untuk daftar coin"
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🏓 **Ping & Benchmark**",
+        value=(
+            "🔹 **`!ping`** - Check bot latency dan benchmark response time untuk semua exchange\n"
+            "🔹 **`/ping`** - Slash command untuk ping dan benchmark exchange"
         ),
         inline=False
     )
@@ -1237,6 +1303,57 @@ async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybi
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Slash coinlist command error: {e}")
         await interaction.followup.send(f"⚠️ Error mengambil daftar koin: {e}")
+
+@tree.command(name="ping", description="Check bot latency and benchmark exchange response times")
+async def slash_ping(interaction: discord.Interaction):
+    print(f"{LOG_PREFIX} 🏓 Slash ping command triggered by {interaction.user}")
+    
+    await interaction.response.defer()
+    
+    # Measure bot latency
+    latency = round(bot.latency * 1000)
+    
+    # Benchmark exchanges in parallel (non-blocking)
+    exchanges = ['bybit', 'binance', 'bitget', 'gateio']
+    benchmark_results = {}
+
+    async def bench_exchange(exch: str, timeout: int = 20):
+        loop = bot.loop
+        start = time.time()
+        try:
+            coro = loop.run_in_executor(None, lambda: generate_trade_plan("BTC", "1h", exch, forced_direction=None, return_dict=True, ema_short=13, ema_long=21))
+            result = await asyncio.wait_for(coro, timeout=timeout)
+            if isinstance(result, str):
+                return exch, "Error"
+            elapsed = round((time.time() - start) * 1000)
+            return exch, elapsed
+        except asyncio.TimeoutError:
+            return exch, "Timeout"
+        except Exception:
+            return exch, "Error"
+
+    tasks = [asyncio.create_task(bench_exchange(ex)) for ex in exchanges]
+    results = await asyncio.gather(*tasks)
+    for exch, value in results:
+        benchmark_results[exch] = value
+    
+    # Create embed
+    embed = discord.Embed(
+        title="🏓 Bot Ping & Exchange Benchmark",
+        description="Measuring bot response time and exchange signal generation speed for $BTC command",
+        color=0x00FF88
+    )
+    embed.add_field(name="🤖 Bot Latency", value=f"`{latency} ms`", inline=False)
+    for exchange, time_taken in benchmark_results.items():
+        if time_taken == "Error":
+            embed.add_field(name=f"🏦 {exchange.upper()}", value="`Error`", inline=True)
+        else:
+            embed.add_field(name=f"🏦 {exchange.upper()}", value=f"`{time_taken} ms`", inline=True)
+    
+    embed.set_footer(text=f"{BOT_FOOTER_NAME}")
+    
+    await interaction.followup.send(embed=embed)
+    print(f"{LOG_PREFIX} ✅ Slash ping command completed")
 
 # ============================
 # Start bot
