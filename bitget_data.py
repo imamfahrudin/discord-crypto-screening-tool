@@ -174,24 +174,30 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     # Bitget v2 API uses symbol without suffix (just BTCUSDT)
     bitget_symbol = symbol
     
-    # Calculate end time (current time) in milliseconds
-    end_time = int(time.time() * 1000)
-    # Calculate start time (limit candles back)
+    # Calculate time range in milliseconds
+    # Bitget API expects: endTime (oldest) and startTime (newest) - YES, IT'S BACKWARDS!
+    # Get current time as the "start" (newest point)
+    current_time = int(time.time() * 1000)
+    
+    # Calculate milliseconds per interval
     interval_ms = {
         '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000,
         '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '12h': 43200000,
         '1d': 86400000, '1week': 604800000, '1M': 2592000000
     }
-    start_time = end_time - (interval_ms.get(interval, 3600000) * limit)
     
-    # Bitget v2 API endpoint - uses different format
+    # Calculate the oldest point we need (current - duration)
+    duration_ms = interval_ms.get(interval, 3600000) * limit
+    oldest_time = current_time - duration_ms
+    
+    # Bitget v2 API endpoint - NOTE: startTime is NEWEST, endTime is OLDEST
     url = f"{BITGET_BASE_URL}/api/v2/mix/market/candles"
     params = {
         'symbol': bitget_symbol,
         'productType': 'USDT-FUTURES',
         'granularity': interval,
-        'startTime': str(start_time),
-        'endTime': str(end_time)
+        'startTime': str(current_time),  # Newest timestamp
+        'endTime': str(oldest_time)      # Oldest timestamp
     }
     
     try:
