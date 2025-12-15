@@ -120,4 +120,5 @@ Thumbs.db
 
 # Project specific
 config.json
-pairs_cache.json
+bybit_pairs_cache.json
+binance_pairs_cache.json
