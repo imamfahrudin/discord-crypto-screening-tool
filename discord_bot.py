@@ -356,8 +356,8 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
     try:
         print(f"{LOG_PREFIX} ⏳ Running signal generation in thread pool...")
         result = await bot.loop.run_in_executor(None, run_blocking_calls)
-        if isinstance(result, str) and result.startswith("❌ Pair"):
-            print(f"{LOG_PREFIX} ❌ Pair validation failed: {result}")
+        if isinstance(result, str):
+            print(f"{LOG_PREFIX} ❌ Signal generation returned error string: {result}")
             await send_error(ctx_or_message, result)
             return
 
@@ -699,6 +699,9 @@ async def scan_command(ctx, *, args: str):
                     print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
                     continue
                 result, setup_str = result_tuple
+                if isinstance(result, str):
+                    print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
+                    continue
                 confidence = result.get('confidence', 0)
                 results.append((confidence, setup_str, result))
                 print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
@@ -1131,6 +1134,9 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
                     print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
                     continue
                 result, setup_str = result_tuple
+                if isinstance(result, str):
+                    print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
+                    continue
                 confidence = result.get('confidence', 0)
                 results.append((confidence, setup_str, result))
                 print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
