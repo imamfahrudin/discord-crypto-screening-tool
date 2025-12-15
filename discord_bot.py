@@ -610,7 +610,7 @@ async def scan_command(ctx, *, args: str):
         part_lower = part.lower()
         
         # Check if it's an exchange
-        if part_lower in ('binance', 'bybit'):
+        if part_lower in ('binance', 'bybit', 'bitget'):
             exchange = part_lower
             print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
             continue
