@@ -150,19 +150,20 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     print(f"{LOG_PREFIX} 📈 Fetching OHLC for {symbol} {timeframe}")
     
     # Bitget interval mapping for v2 API
+    # Bitget API requires specific granularity format (uppercase H and D)
     tf_map = {
         '1m': '1m',
         '3m': '3m',
         '5m': '5m',
         '15m': '15m',
         '30m': '30m',
-        '1h': '1h',
-        '2h': '2h',
-        '4h': '4h',
-        '6h': '6h',
-        '12h': '12h',
-        '1d': '1d',
-        '1w': '1week',
+        '1h': '1H',    # Bitget uses uppercase H
+        '2h': '2H',
+        '4h': '4H',
+        '6h': '6H',
+        '12h': '12H',
+        '1d': '1D',    # Bitget uses uppercase D
+        '1w': '1W',    # Bitget uses 1W not 1week
         '1M': '1M'
     }
     
@@ -179,11 +180,11 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     # Get current time as the "start" (newest point)
     current_time = int(time.time() * 1000)
     
-    # Calculate milliseconds per interval
+    # Calculate milliseconds per interval (use Bitget format keys)
     interval_ms = {
         '1m': 60000, '3m': 180000, '5m': 300000, '15m': 900000, '30m': 1800000,
-        '1h': 3600000, '2h': 7200000, '4h': 14400000, '6h': 21600000, '12h': 43200000,
-        '1d': 86400000, '1week': 604800000, '1M': 2592000000
+        '1H': 3600000, '2H': 7200000, '4H': 14400000, '6H': 21600000, '12H': 43200000,
+        '1D': 86400000, '1W': 604800000, '1M': 2592000000
     }
     
     # Calculate the oldest point we need (current - duration)
