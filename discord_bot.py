@@ -106,8 +106,9 @@ async def on_message(message):
             part_lower = part.lower()
             
             # Check if it's an exchange
-            if part_lower in ('binance', 'bybit', 'bitget'):
-                exchange = part_lower
+            if part_lower in ('binance', 'bybit', 'bitget', 'gateio', 'gate'):
+                # Normalize 'gate' to 'gateio'
+                exchange = 'gateio' if part_lower == 'gate' else part_lower
                 print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
                 continue
             
@@ -519,8 +520,9 @@ async def signal_command(ctx, *args):
         part_lower = part.lower()
         
         # Check if it's an exchange
-        if part_lower in ('binance', 'bybit', 'bitget'):
-            exchange = part_lower
+        if part_lower in ('binance', 'bybit', 'bitget', 'gateio', 'gate'):
+            # Normalize 'gate' to 'gateio'
+            exchange = 'gateio' if part_lower == 'gate' else part_lower
             print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
             continue
         
@@ -610,8 +612,9 @@ async def scan_command(ctx, *, args: str):
         part_lower = part.lower()
         
         # Check if it's an exchange
-        if part_lower in ('binance', 'bybit', 'bitget'):
-            exchange = part_lower
+        if part_lower in ('binance', 'bybit', 'bitget', 'gateio', 'gate'):
+            # Normalize 'gate' to 'gateio'
+            exchange = 'gateio' if part_lower == 'gate' else part_lower
             print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
             continue
         
@@ -827,7 +830,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
 async def coinlist_command(ctx, *, args: str = ""):
     """
     List all available coins for trading signals.
-    Usage: !coinlist [binance|bitget]
+    Usage: !coinlist [binance|bitget|gateio|gate]
     """
     print(f"{LOG_PREFIX} 📋 Coinlist command triggered by {ctx.author}")
     
@@ -837,6 +840,8 @@ async def coinlist_command(ctx, *, args: str = ""):
         exchange = 'binance'
     elif 'bitget' in args_lower:
         exchange = 'bitget'
+    elif 'gateio' in args_lower or 'gate' in args_lower:
+        exchange = 'gateio'
     else:
         exchange = 'bybit'
     print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")
@@ -930,6 +935,7 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
             "• `!signal BTC binance` → Gunakan data Binance Futures\n"
             "• `!signal BTC bitget` → Gunakan data Bitget Futures\n"
+            "• `!signal BTC gateio` → Gunakan data Gate.io Futures\n"
             "• `!scan BTC,ETH,SOL` → Scan BTC, ETH, SOL; pilih setup terbaik per coin\n"
             "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50"
         ),
@@ -942,13 +948,14 @@ async def slash_help(interaction: discord.Interaction):
             "• `!scan BTC ETH SOL ema20 ema50` → Format fleksibel tanpa koma\n"
             "• `!scan BTC ETH binance` → Scan dengan data Binance\n"
             "• `!scan BTC ETH bitget` → Scan dengan data Bitget\n"
+            "• `!scan BTC ETH gateio` → Scan dengan data Gate.io\n"
             "• `/scan BTC,ETH,SOL` → Slash scan untuk BTC, ETH, SOL\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
             "• `$BTC 1h detail` → Cepat dengan analisis detail\n"
-            "• `$BTC bitget` → Cepat dengan data Bitget\n"
+            "• `$BTC gateio` → Cepat dengan data Gate.io\n"
             "• `/signal` → Slash command interaktif (support custom EMA)"
         ),
         inline=True
@@ -959,7 +966,7 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "**🪙 COIN**: BTC, ETH, SOL, dll.\n"
             "**⏱️ TIMEFRAME**: Optional, default 1h. Lihat kolom sebelah kiri untuk pilihan\n"
-            "**🏦 EXCHANGE**: Optional, default Bybit. Pilih 'binance' atau 'bitget'\n"
+            "**🏦 EXCHANGE**: Optional, default Bybit. Pilih 'binance', 'bitget', atau 'gateio'\n"
             "**📈 DIRECTION**: Auto (default), Long, Short\n"
             "**📊 EMA**: Optional, default 13/21. Custom EMA untuk scan dan signal\n"
             "**📊 DETAIL**: Tambahkan 'detail' untuk analisis lengkap"
@@ -1005,7 +1012,7 @@ async def slash_help(interaction: discord.Interaction):
     ema_short="Short EMA period (default: 13)",
     ema_long="Long EMA period (default: 21)",
     detail="Show detailed analysis (default: False)",
-    exchange="Exchange to use (binance, bybit, or bitget, default: bybit)"
+    exchange="Exchange to use (binance, bybit, bitget, or gateio, default: bybit)"
 )
 @discord.app_commands.choices(timeframe=[
     discord.app_commands.Choice(name="1m", value="1m"),
@@ -1025,7 +1032,8 @@ async def slash_help(interaction: discord.Interaction):
 @discord.app_commands.choices(exchange=[
     discord.app_commands.Choice(name="Bybit", value="bybit"),
     discord.app_commands.Choice(name="Binance", value="binance"),
-    discord.app_commands.Choice(name="Bitget", value="bitget")
+    discord.app_commands.Choice(name="Bitget", value="bitget"),
+    discord.app_commands.Choice(name="Gate.io", value="gateio")
 ])
 async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21, detail: bool = False, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} ⚡ Slash signal command triggered by {interaction.user}: symbol={symbol}, timeframe={timeframe}, direction={direction}, ema_short={ema_short}, ema_long={ema_long}, detail={detail}, exchange={exchange}")
@@ -1070,12 +1078,13 @@ async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe:
     coins="Coins to scan (comma or space separated, max 5)",
     ema_short="Short EMA period (default: 13)",
     ema_long="Long EMA period (default: 21)",
-    exchange="Exchange to use (binance, bybit, or bitget, default: bybit)"
+    exchange="Exchange to use (binance, bybit, bitget, or gateio, default: bybit)"
 )
 @discord.app_commands.choices(exchange=[
     discord.app_commands.Choice(name="Bybit", value="bybit"),
     discord.app_commands.Choice(name="Binance", value="binance"),
-    discord.app_commands.Choice(name="Bitget", value="bitget")
+    discord.app_commands.Choice(name="Bitget", value="bitget"),
+    discord.app_commands.Choice(name="Gate.io", value="gateio")
 ])
 async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: int = 13, ema_long: int = 21, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} 🔍 Slash scan command triggered by {interaction.user}: coins='{coins}', ema_short={ema_short}, ema_long={ema_long}, exchange={exchange}")
@@ -1193,14 +1202,16 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
     print(f"{LOG_PREFIX} ✅ Slash scan command completed")
 
 @tree.command(name="coinlist", description="List all available coins for trading signals")
-@discord.app_commands.describe(exchange="Exchange to list coins from (bybit/binance/bitget, default: bybit)")
+@discord.app_commands.describe(exchange="Exchange to list coins from (bybit/binance/bitget/gateio, default: bybit)")
 async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybit"):
     print(f"{LOG_PREFIX} 📋 Slash coinlist command triggered by {interaction.user}")
     
     # Normalize exchange name
     exchange = exchange.lower()
-    if exchange not in ['bybit', 'binance', 'bitget']:
-        await interaction.response.send_message("⚠️ Exchange tidak valid. Gunakan 'bybit', 'binance', atau 'bitget'.", ephemeral=True)
+    if exchange == 'gate':
+        exchange = 'gateio'
+    if exchange not in ['bybit', 'binance', 'bitget', 'gateio']:
+        await interaction.response.send_message("⚠️ Exchange tidak valid. Gunakan 'bybit', 'binance', 'bitget', atau 'gateio'.", ephemeral=True)
         return
     
     print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")

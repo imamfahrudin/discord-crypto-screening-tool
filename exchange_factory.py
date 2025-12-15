@@ -1,6 +1,6 @@
 """
 Exchange Factory - Abstracts data fetching from different exchanges
-Supports: Bybit, Binance, Bitget
+Supports: Bybit, Binance, Bitget, Gate.io
 """
 
 LOG_PREFIX = "[exchange_factory]"
@@ -10,7 +10,7 @@ def get_exchange_module(exchange: str):
     Get the appropriate exchange data module based on exchange name.
     
     Args:
-        exchange: Exchange name ('bybit', 'binance', or 'bitget')
+        exchange: Exchange name ('bybit', 'binance', 'bitget', or 'gateio')
         
     Returns:
         Exchange data module with fetch_ohlc, normalize_symbol, pair_exists, get_all_pairs functions
@@ -29,6 +29,10 @@ def get_exchange_module(exchange: str):
         print(f"{LOG_PREFIX} 🔵 Using Bitget Futures data source")
         import bitget_data
         return bitget_data
+    elif exchange in ('gateio', 'gate'):
+        print(f"{LOG_PREFIX} 🟢 Using Gate.io Futures data source")
+        import gate_data
+        return gate_data
     else:
         print(f"{LOG_PREFIX} ⚠️ Unknown exchange '{exchange}', defaulting to Bybit")
         import bybit_data
@@ -41,7 +45,7 @@ def fetch_ohlc(symbol: str, timeframe: str, exchange: str = 'bybit', limit: int 
     Args:
         symbol: Trading pair symbol (e.g., 'BTCUSDT')
         timeframe: Timeframe (e.g., '1h', '4h', '1d')
-        exchange: Exchange name ('bybit', 'binance', or 'bitget'), default 'bybit'
+        exchange: Exchange name ('bybit', 'binance', 'bitget', or 'gateio'), default 'bybit'
         limit: Number of candles to fetch
         
     Returns:
@@ -56,7 +60,7 @@ def normalize_symbol(symbol: str, exchange: str = 'bybit') -> str:
     
     Args:
         symbol: Trading pair symbol
-        exchange: Exchange name ('bybit', 'binance', or 'bitget'), default 'bybit'
+        exchange: Exchange name ('bybit', 'binance', 'bitget', or 'gateio'), default 'bybit'
         
     Returns:
         Normalized symbol string
@@ -70,7 +74,7 @@ def pair_exists(symbol: str, exchange: str = 'bybit') -> bool:
     
     Args:
         symbol: Trading pair symbol
-        exchange: Exchange name ('bybit', 'binance', or 'bitget'), default 'bybit'
+        exchange: Exchange name ('bybit', 'binance', 'bitget', or 'gateio'), default 'bybit'
         
     Returns:
         True if pair exists, False otherwise
@@ -83,7 +87,7 @@ def get_all_pairs(exchange: str = 'bybit', force_refresh: bool = False):
     Get all available trading pairs from exchange.
     
     Args:
-        exchange: Exchange name ('bybit', 'binance', or 'bitget'), default 'bybit'
+        exchange: Exchange name ('bybit', 'binance', 'bitget', or 'gateio'), default 'bybit'
         force_refresh: Force refresh from API instead of using cache
         
     Returns:
@@ -98,7 +102,7 @@ def get_last_price_from_rest(symbol: str, exchange: str = 'bybit'):
     
     Args:
         symbol: Trading pair symbol
-        exchange: Exchange name ('bybit', 'binance', or 'bitget'), default 'bybit'
+        exchange: Exchange name ('bybit', 'binance', 'bitget', or 'gateio'), default 'bybit'
         
     Returns:
         Float price or None if failed

@@ -10,7 +10,7 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 
 - **Real-time Signal Generation**: Analyzes crypto pairs using RSI and EMA indicators
 - **Discord Integration**: Posts trading signals directly to Discord channels
-- **Multi-Exchange Support**: Support for Bybit, Binance, and Bitget Futures
+- **Multi-Exchange Support**: Support for Bybit, Binance, Bitget, and Gate.io Futures
 - **WebSocket Price Feeds**: Real-time price data from Bybit exchange
 - **Modern Slash Commands**: Interactive commands with dropdown menus for easy use
 - **Chart Generation**: Visual position setup with entry/SL/TP levels, FVG zones, EMAs, and volume bars
@@ -216,16 +216,19 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 - `!signal BTC 1h long` - Check specifically for long signals on BTC/USDT 1-hour chart
 - `!signal BTC binance` - Check signals using Binance Futures data
 - `!signal BTC bitget` - Check signals using Bitget Futures data
+- `!signal BTC gateio` - Check signals using Gate.io Futures data
 - `!signal ETH 4h short ema20 ema50` - Check for short signals with custom EMA 20/50
 - `!signal SOL long ema9 ema21 4h detail` - Flexible parameter order with detailed analysis
 - `!scan BTC ETH SOL` - Scan BTC, ETH, SOL and show best setup for each (Bybit)
 - `!scan BTC,ETH ema20 ema50 binance` - Scan with custom EMA periods using Binance
 - `!scan BTC ETH bitget` - Scan BTC and ETH using Bitget Futures
+- `!scan BTC ETH gateio` - Scan BTC and ETH using Gate.io Futures
 - `!coinlist` - Show paginated list of all available coins (Bybit)
 - `!coinlist binance` - Show coins from Binance Futures
 - `!coinlist bitget` - Show coins from Bitget Futures
+- `!coinlist gateio` - Show coins from Gate.io Futures
 - `$BTC` - Quick check for BTC signals (1h default, Bybit)
-- `$ETH 4h long ema20 ema50 bitget detail` - Quick command with all parameters using Bitget
+- `$ETH 4h long ema20 ema50 gateio detail` - Quick command with all parameters using Gate.io
 - `/signal` - Use the interactive slash command with dropdowns
 - `/scan` - Interactive multi-coin scanning
 - `/coinlist` - Paginated coin list
@@ -362,6 +365,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Bybit](https://www.bybit.com/) for exchange data
 - [Binance](https://www.binance.com/) for Binance Futures data
 - [Bitget](https://www.bitget.com/) for Bitget Futures data
+- [Gate.io](https://www.gate.io/) for Gate.io Futures data
 - [TA Library](https://github.com/bukosabino/ta) for technical analysis
 - [pandas](https://pandas.pydata.org/) for data manipulation
 

@@ -9,6 +9,7 @@ services:
       - ./bybit_pairs_cache.json:/app/bybit_pairs_cache.json
       - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
       - ./bitget_pairs_cache.json:/app/bitget_pairs_cache.json
+      - ./gate_pairs_cache.json:/app/gate_pairs_cache.json
     restart: unless-stopped
     dns:
       - 127.0.0.1
@@ -21,6 +22,7 @@ services:
   #     - ./bybit_pairs_cache.json:/app/bybit_pairs_cache.json
   #     - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
   #     - ./bitget_pairs_cache.json:/app/bitget_pairs_cache.json
+  #     - ./gate_pairs_cache.json:/app/gate_pairs_cache.json
   #   restart: unless-stopped
   #   dns:
   #     - 127.0.0.1
