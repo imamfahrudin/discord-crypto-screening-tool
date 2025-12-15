@@ -200,13 +200,27 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         'endTime': str(oldest_time)      # Oldest timestamp
     }
     
+    print(f"{LOG_PREFIX} 🔍 DEBUG - Request parameters:")
+    print(f"{LOG_PREFIX}   - current_time (newest): {current_time}")
+    print(f"{LOG_PREFIX}   - oldest_time: {oldest_time}")
+    print(f"{LOG_PREFIX}   - duration_ms: {duration_ms}")
+    print(f"{LOG_PREFIX}   - interval: {interval}")
+    print(f"{LOG_PREFIX}   - limit: {limit}")
+    
     try:
         resp = _SESSION.get(url, params=params, timeout=(10, 30))
+        
+        # Print response before raising error
+        print(f"{LOG_PREFIX} 📥 Response status: {resp.status_code}")
+        print(f"{LOG_PREFIX} 📥 Response body: {resp.text[:500]}")  # First 500 chars
+        
         resp.raise_for_status()
         data = resp.json()
         
         if data.get('code') != '00000':
-            print(f"{LOG_PREFIX} ❌ API error: {data.get('msg', 'Unknown error')}")
+            print(f"{LOG_PREFIX} ❌ API error code: {data.get('code')}")
+            print(f"{LOG_PREFIX} ❌ API error message: {data.get('msg', 'Unknown error')}")
+            print(f"{LOG_PREFIX} ❌ Full response: {data}")
             raise Exception(f"Bitget API error: {data.get('msg', 'Unknown error')}")
         
         candles = data.get('data', [])
