@@ -689,76 +689,99 @@ async def scan_command(ctx, *, args: str):
         ("4h", "short"),   # $coin 4h short
     ]
 
+    # Create all scan tasks for parallel execution
+    scan_tasks = []
     for coin in coins_final:
         # Check if coin looks like a timeframe or direction - hint to use $ command
         coin_lower = coin.lower()
         if coin_lower in [t.lower() for t in valid_tfs] or coin_lower in ('long', 'short', 'detail'):
             await send_error(ctx, f"⚠️ '{coin}' terlihat seperti parameter untuk sinyal tunggal. Jika Anda ingin sinyal tunggal, gunakan perintah `$` seperti `$BTC 1d long detail`.")
             continue
-        
-        print(f"{LOG_PREFIX} 📊 Scanning coin: {coin}")
-        
-        results = []
+
         for timeframe, direction in setups:
             setup_str = f"${coin} {timeframe}"
             if direction:
                 setup_str += f" {direction}"
-            
+
             # Append custom EMA values if not using defaults (13/21)
             if ema_short != 13 or ema_long != 21:
                 setup_str += f" ema{ema_short} ema{ema_long}"
-            
-            def run_scan():
-                symbol_norm = normalize_symbol(coin, exchange)
-                if not pair_exists(symbol_norm, exchange):
-                    return None
-                result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
-                return result, setup_str
-            
-            try:
-                result_tuple = await bot.loop.run_in_executor(None, run_scan)
-                if result_tuple is None:
-                    print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
-                    continue
-                result, setup_str = result_tuple
-                if isinstance(result, str):
-                    print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
-                    continue
-                confidence = result.get('confidence', 0)
-                results.append((confidence, setup_str, result))
-                print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
-            except Exception as e:
-                print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
-                continue
-        
-        if not results:
+
+            scan_tasks.append((coin, timeframe, direction, setup_str))
+
+    print(f"{LOG_PREFIX} 🚀 Starting parallel scan for {len(scan_tasks)} setups across {len(coins_final)} coins")
+
+    # Execute all scans in parallel
+    async def run_single_scan(coin, timeframe, direction, setup_str):
+        def run_scan():
+            symbol_norm = normalize_symbol(coin, exchange)
+            if not pair_exists(symbol_norm, exchange):
+                return None
+            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+            return result, setup_str
+
+        try:
+            result_tuple = await bot.loop.run_in_executor(None, run_scan)
+            if result_tuple is None:
+                print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
+                return None
+            result, setup_str = result_tuple
+            if isinstance(result, str):
+                print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
+                return None
+            confidence = result.get('confidence', 0)
+            print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
+            return (coin, confidence, setup_str, result)
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
+            return None
+
+    # Create and run all tasks concurrently
+    tasks = [run_single_scan(coin, tf, dir, setup) for coin, tf, dir, setup in scan_tasks]
+    scan_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Group results by coin
+    coin_results = {}
+    for result in scan_results:
+        if result is None or isinstance(result, Exception):
+            continue
+        coin, confidence, setup_str, data = result
+        if coin not in coin_results:
+            coin_results[coin] = []
+        coin_results[coin].append((confidence, setup_str, data))
+
+    # Process results for each coin
+    for coin in coins_final:
+        if coin not in coin_results or not coin_results[coin]:
             await send_error(ctx, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
             continue
-        
+
+        results = coin_results[coin]
+
         # Find the best result (highest confidence)
         best_result = max(results, key=lambda x: x[0])
         best_confidence, best_setup, best_data = best_result
-        
+
         # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
         # Split: ['$BTC', '1h', 'long'] -> index 1 is timeframe
         best_timeframe = best_setup.split()[1]
-        
+
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
-        
+
         # Generate chart for best result
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
-        
+
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
         embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange)
-        
+
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{best_timeframe}.png")
             await send_response(ctx, embed=embed, file=file, view=view)
         else:
             await send_response(ctx, embed=embed, view=view)
-        
+
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
 def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit'):
@@ -1215,75 +1238,98 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         ("4h", "short"),
     ]
 
+    # Create all scan tasks for parallel execution
+    scan_tasks = []
     for coin in coins_final:
         # Check if coin looks like a timeframe or direction - hint to use $ command
         coin_lower = coin.lower()
         if coin_lower in [t.lower() for t in ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']] or coin_lower in ('long', 'short', 'detail'):
             await interaction.followup.send(f"⚠️ '{coin}' terlihat seperti parameter untuk sinyal tunggal. Jika Anda ingin sinyal tunggal, gunakan perintah `$` seperti `$BTC 1d long detail`.")
             continue
-        
-        print(f"{LOG_PREFIX} 📊 Scanning coin: {coin}")
-        
-        results = []
+
         for timeframe, direction in setups:
             setup_str = f"${coin} {timeframe}"
             if direction:
                 setup_str += f" {direction}"
-            
+
             # Append custom EMA values if not using defaults (13/21)
             if ema_short != 13 or ema_long != 21:
                 setup_str += f" ema{ema_short} ema{ema_long}"
-            
-            def run_scan():
-                symbol_norm = normalize_symbol(coin, exchange)
-                if not pair_exists(symbol_norm, exchange):
-                    return None
-                result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
-                return result, setup_str
-            
-            try:
-                result_tuple = await bot.loop.run_in_executor(None, run_scan)
-                if result_tuple is None:
-                    print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
-                    continue
-                result, setup_str = result_tuple
-                if isinstance(result, str):
-                    print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
-                    continue
-                confidence = result.get('confidence', 0)
-                results.append((confidence, setup_str, result))
-                print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
-            except Exception as e:
-                print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
-                continue
-        
-        if not results:
+
+            scan_tasks.append((coin, timeframe, direction, setup_str))
+
+    print(f"{LOG_PREFIX} 🚀 Starting parallel slash scan for {len(scan_tasks)} setups across {len(coins_final)} coins")
+
+    # Execute all scans in parallel
+    async def run_single_scan(coin, timeframe, direction, setup_str):
+        def run_scan():
+            symbol_norm = normalize_symbol(coin, exchange)
+            if not pair_exists(symbol_norm, exchange):
+                return None
+            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+            return result, setup_str
+
+        try:
+            result_tuple = await bot.loop.run_in_executor(None, run_scan)
+            if result_tuple is None:
+                print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
+                return None
+            result, setup_str = result_tuple
+            if isinstance(result, str):
+                print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
+                return None
+            confidence = result.get('confidence', 0)
+            print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
+            return (coin, confidence, setup_str, result)
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
+            return None
+
+    # Create and run all tasks concurrently
+    tasks = [run_single_scan(coin, tf, dir, setup) for coin, tf, dir, setup in scan_tasks]
+    scan_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Group results by coin
+    coin_results = {}
+    for result in scan_results:
+        if result is None or isinstance(result, Exception):
+            continue
+        coin, confidence, setup_str, data = result
+        if coin not in coin_results:
+            coin_results[coin] = []
+        coin_results[coin].append((confidence, setup_str, data))
+
+    # Process results for each coin
+    for coin in coins_final:
+        if coin not in coin_results or not coin_results[coin]:
             await interaction.followup.send(f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
             continue
-        
+
+        results = coin_results[coin]
+
         # Find the best result (highest confidence)
         best_result = max(results, key=lambda x: x[0])
         best_confidence, best_setup, best_data = best_result
-        
+
         # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
         # Split: ['$BTC', '1h', 'long'] -> index 1 is timeframe
         best_timeframe = best_setup.split()[1]
-        
+
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
-        
+
         # Generate chart for best result
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
-        
+
         # Create embed with all confidences listed
         embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
-        
+
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
             await interaction.followup.send(embed=embed, file=file, view=view)
         else:
             await interaction.followup.send(embed=embed, view=view)
-        
+
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
     print(f"{LOG_PREFIX} ✅ Slash scan command completed")
