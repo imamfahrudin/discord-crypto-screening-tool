@@ -431,7 +431,10 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     }
     interval = interval_map.get(timeframe.lower(), "1D")
     exchange_upper = exchange.upper()
-    tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}USDT.P')}&interval={interval}"
+    # Ensure symbol ends with USDT for proper TradingView pair notation
+    if not symbol.endswith('USDT'):
+        symbol += 'USDT'
+    tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}.P')}&interval={interval}"
     
     embed = discord.Embed(color=color)
     
@@ -778,7 +781,10 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     }
     interval = interval_map.get(timeframe.lower(), "1D")
     exchange_upper = exchange.upper()
-    tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}USDT.P')}&interval={interval}"
+    # Ensure symbol ends with USDT for proper TradingView pair notation
+    if not symbol.endswith('USDT'):
+        symbol += 'USDT'
+    tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}.P')}&interval={interval}"
     
     embed = discord.Embed(color=color)
     
