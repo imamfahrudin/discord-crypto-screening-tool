@@ -750,11 +750,12 @@ async def scan_command(ctx, *, args: str):
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
         
         # Create embed with all confidences listed
-        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
+        symbol_norm = normalize_symbol(coin, exchange)
+        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange)
         
         # Send response
         if chart_buf:
-            file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{best_timeframe}.png")
             await send_response(ctx, embed=embed, file=file, view=view)
         else:
             await send_response(ctx, embed=embed, view=view)
@@ -836,7 +837,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     
     # Set chart as image
-    embed.set_image(url=f"attachment://scan_chart_{symbol}_{timeframe}.png")
+    embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
     
     # Create view with TradingView button
     view = discord.ui.View()
