@@ -11,7 +11,6 @@ from urllib.parse import quote
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
 from exchange_factory import normalize_symbol, pair_exists, get_all_pairs
-from ws_prices import start_ws_in_background, PRICES
 from utils import calculate_rr, format_price_dynamic
 from chart_generator import generate_chart_with_setup, generate_neutral_chart
 
@@ -53,8 +52,8 @@ async def on_ready():
         traceback.print_exc()
 
     print(f"{LOG_PREFIX} 🚀 Starting WebSocket connections for price updates...")
-    start_ws_in_background(url=WS_URL, symbols=["BTCUSDT", "ETHUSDT", "SOLUSDT"])
-    print(f"{LOG_PREFIX} 📡 WebSocket connections initiated")
+    # WebSocket connections removed - using OHLC data only
+    print(f"{LOG_PREFIX} 📡 WebSocket connections skipped (using OHLC data only)")
 
     print(f"{LOG_PREFIX} 🔄 Syncing slash commands...")
     try:

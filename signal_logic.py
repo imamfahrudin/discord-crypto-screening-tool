@@ -1,7 +1,6 @@
 import pandas as pd
 import ta
 import numpy as np
-from ws_prices import PRICES
 from exchange_factory import fetch_ohlc, normalize_symbol
 from utils import calculate_rr, format_price_dynamic
 
@@ -272,9 +271,8 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit', forc
 
     last = df.iloc[-1]
     sym = symbol.upper()
-    ws_price = PRICES.get(sym)
-    current_price = float(ws_price) if ws_price is not None else float(last['close'])
-    print(f"{LOG_PREFIX} 💰 Current price: {current_price} (ws: {ws_price is not None})")
+    current_price = float(last['close'])
+    print(f"{LOG_PREFIX} 💰 Current price: {current_price}")
 
     # Values
     ema13 = float(last['ema13'])
