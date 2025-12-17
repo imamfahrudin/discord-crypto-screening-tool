@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import time
 import asyncio
 import re
+from urllib.parse import quote
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
 from exchange_factory import normalize_symbol, pair_exists, get_all_pairs
@@ -379,17 +380,17 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         
         # Create embed
         print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
-        embed = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange)
+        embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange)
         
         # Send with chart attachment
         if chart_buf:
             print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-            await send_response(ctx_or_message, embed=embed, file=file)
+            await send_response(ctx_or_message, embed=embed, file=file, view=view)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
         else:
             print(f"{LOG_PREFIX} 📤 Sending response without chart")
-            await send_response(ctx_or_message, embed=embed)
+            await send_response(ctx_or_message, embed=embed, view=view)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
             
         # Add success reaction
@@ -430,7 +431,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     }
     interval = interval_map.get(timeframe.lower(), "1D")
     exchange_upper = exchange.upper()
-    tv_url = f"https://www.tradingview.com/chart/?symbol={exchange_upper}:{symbol}&interval={interval}"
+    tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}')}&interval={interval}"
     
     embed = discord.Embed(color=color)
     
@@ -445,7 +446,6 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         ema_long = data.get('ema_long', 21)
         embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
         embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
-        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     else:
@@ -475,7 +475,6 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         
         embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
         embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
-        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=True)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     
@@ -485,7 +484,16 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     # Set chart as image (will be attached separately)
     embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
     
-    return embed
+    # Create view with TradingView button
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        label="📈 View on TradingView",
+        url=tv_url,
+        emoji="📊"
+    ))
+    
+    return embed, view
 
 # ============================
 # Commands
@@ -739,14 +747,14 @@ async def scan_command(ctx, *, args: str):
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
         
         # Create embed with all confidences listed
-        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
+        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
         
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
-            await send_response(ctx, embed=embed, file=file)
+            await send_response(ctx, embed=embed, file=file, view=view)
         else:
-            await send_response(ctx, embed=embed)
+            await send_response(ctx, embed=embed, view=view)
         
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
@@ -770,7 +778,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     }
     interval = interval_map.get(timeframe.lower(), "1D")
     exchange_upper = exchange.upper()
-    tv_url = f"https://www.tradingview.com/chart/?symbol={exchange_upper}:{symbol}&interval={interval}"
+    tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}')}&interval={interval}"
     
     embed = discord.Embed(color=color)
     
@@ -782,7 +790,6 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
         embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
         embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
-        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=False)
     else:
         entry_fmt = format_price_dynamic(data.get('entry'))
         sl_fmt = format_price_dynamic(data.get('stop_loss'))
@@ -807,7 +814,6 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         
         embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
         embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
-        embed.add_field(name="🔗 Chart", value=f"[📈 TradingView]({tv_url})", inline=True)
     
     # Add all confidences list
     sorted_results = sorted(all_results, key=lambda x: x[0], reverse=True)
@@ -826,7 +832,16 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     # Set chart as image
     embed.set_image(url=f"attachment://scan_chart_{symbol}_{timeframe}.png")
     
-    return embed
+    # Create view with TradingView button
+    view = discord.ui.View()
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.link,
+        label="📈 View on TradingView",
+        url=tv_url,
+        emoji="📊"
+    ))
+    
+    return embed, view
 
 @bot.command(name="coinlist")
 async def coinlist_command(ctx, *, args: str = ""):
@@ -1254,14 +1269,14 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
         
         # Create embed with all confidences listed
-        embed = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
+        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
         
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
-            await interaction.followup.send(embed=embed, file=file)
+            await interaction.followup.send(embed=embed, file=file, view=view)
         else:
-            await interaction.followup.send(embed=embed)
+            await interaction.followup.send(embed=embed, view=view)
         
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
