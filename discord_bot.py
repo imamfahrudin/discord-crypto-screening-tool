@@ -1458,7 +1458,7 @@ async def slash_ping(interaction: discord.Interaction):
 @bot.event
 async def on_interaction(interaction):
     if interaction.type == discord.InteractionType.component:
-        custom_id = interaction.custom_id
+        custom_id = interaction.data.custom_id
         if custom_id.startswith("ema_switch:"):
             parts = custom_id.split(":")
             if len(parts) != 10:
@@ -1512,13 +1512,21 @@ async def on_interaction(interaction):
                 symbol_norm = normalize_symbol(symbol, exchange)
                 chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe, exchange)
                 
-                embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
+                # Check if this is a scan result by looking at the current embed title
+                is_scan = "(Scanned)" in interaction.message.embeds[0].title if interaction.message.embeds else False
+                
+                if is_scan:
+                    # For scan results, we need all results, but since we're regenerating, we only have one
+                    # This is a limitation - for simplicity, we'll regenerate as signal
+                    embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
+                else:
+                    embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
                 
                 if chart_buf:
                     file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-                    await interaction.message.edit(embed=embed, attachments=[file], view=view)
+                    await interaction.message.edit(embed=embed, file=file, attachments=[], view=view)
                 else:
-                    await interaction.message.edit(embed=embed, view=view)
+                    await interaction.message.edit(embed=embed, attachments=[], view=view)
                     
             except Exception as e:
                 await interaction.followup.send(f"Error updating signal: {e}", ephemeral=True)
