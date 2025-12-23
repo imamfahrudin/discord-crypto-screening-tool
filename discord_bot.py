@@ -1458,7 +1458,7 @@ async def slash_ping(interaction: discord.Interaction):
 @bot.event
 async def on_interaction(interaction):
     if interaction.type == discord.InteractionType.component:
-        custom_id = interaction.data.custom_id
+        custom_id = interaction.data['custom_id']
         if custom_id.startswith("ema_switch:"):
             parts = custom_id.split(":")
             if len(parts) != 10:
