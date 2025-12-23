@@ -1526,7 +1526,7 @@ async def on_interaction(interaction):
             
             # Check if the user is the one who requested the signal
             if user_id and user_id != interaction.user.id:
-                await interaction.response.send_message("You can only use EMA switch buttons on signals you requested.", ephemeral=True)
+                await interaction.response.send_message("Kamu hanya bisa menggunakan tombol switch EMA pada sinyal yang kamu minta.", ephemeral=True)
                 return
             
             await interaction.response.defer()
