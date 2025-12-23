@@ -497,17 +497,23 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     ))
     
     # Add EMA switch button
-    if ema_short == 25 and ema_long == 50:
-        label = "Switch to Original EMA"
-        target_short, target_long = original_ema_short, original_ema_long
+    current_short = data.get('ema_short', 13)
+    current_long = data.get('ema_long', 21)
+    if current_short == 25 and current_long == 50:
+        if original_ema_short == 25 and original_ema_long == 50:
+            target_short, target_long = 13, 21
+            label = "Switch to EMA 13/21"
+        else:
+            target_short, target_long = original_ema_short, original_ema_long
+            label = f"Switch to EMA {original_ema_short}/{original_ema_long}"
     else:
-        label = "Switch to EMA 25/50"
         target_short, target_long = 25, 50
+        label = "Switch to EMA 25/50"
     
     view.add_item(discord.ui.Button(
         style=discord.ButtonStyle.secondary,
         label=label,
-        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:{show_detail}:{user_id or 0}"
+        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{current_short}:{current_long}:{target_short}:{target_long}:{original_ema_short}:{original_ema_long}:{show_detail}:{user_id or 0}"
     ))
     
     return embed, view
@@ -897,16 +903,20 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     ema_short = data.get('ema_short', 13)
     ema_long = data.get('ema_long', 21)
     if ema_short == 25 and ema_long == 50:
-        label = "Switch to Original EMA"
-        target_short, target_long = original_ema_short, original_ema_long
+        if original_ema_short == 25 and original_ema_long == 50:
+            target_short, target_long = 13, 21
+            label = "Switch to EMA 13/21"
+        else:
+            target_short, target_long = original_ema_short, original_ema_long
+            label = f"Switch to EMA {original_ema_short}/{original_ema_long}"
     else:
-        label = "Switch to EMA 25/50"
         target_short, target_long = 25, 50
+        label = "Switch to EMA 25/50"
     
     view.add_item(discord.ui.Button(
         style=discord.ButtonStyle.secondary,
         label=label,
-        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:False:{user_id or 0}"  # show_detail=False for scan
+        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:{original_ema_short}:{original_ema_long}:False:{user_id or 0}"  # show_detail=False for scan
     ))
     
     return embed, view
@@ -1509,17 +1519,19 @@ async def on_interaction(interaction):
         custom_id = interaction.data['custom_id']
         if custom_id.startswith("ema_switch:"):
             parts = custom_id.split(":")
-            if len(parts) != 11:
+            if len(parts) != 13:
                 await interaction.response.send_message("Invalid button data.", ephemeral=True)
                 return
             
-            _, symbol, timeframe, direction, exchange, current_ema_short, current_ema_long, target_ema_short, target_ema_long, show_detail, user_id_str = parts
+            _, symbol, timeframe, direction, exchange, current_ema_short, current_ema_long, target_ema_short, target_ema_long, original_ema_short, original_ema_long, show_detail, user_id_str = parts
             
             # Convert types
             current_ema_short = int(current_ema_short)
             current_ema_long = int(current_ema_long)
             target_ema_short = int(target_ema_short)
             target_ema_long = int(target_ema_long)
+            original_ema_short = int(original_ema_short)
+            original_ema_long = int(original_ema_long)
             show_detail = show_detail == "True"
             direction = direction if direction != "None" else None
             user_id = int(user_id_str) if user_id_str != "0" else None
@@ -1530,24 +1542,6 @@ async def on_interaction(interaction):
                 return
             
             await interaction.response.defer()
-            
-            # Get original EMAs from the original message
-            original_ema_short, original_ema_long = 13, 21  # defaults
-            if interaction.message.reference:
-                try:
-                    original_msg = await interaction.message.channel.fetch_message(interaction.message.reference.message_id)
-                    original_ema_short, original_ema_long = parse_ema_from_message(original_msg.content)
-                except Exception as e:
-                    print(f"{LOG_PREFIX} ⚠️ Could not parse original message for EMAs: {e}")
-            
-            # If switching to 25/50, the target is 25/50, and original is stored
-            # If switching back, target should be the original
-            if target_ema_short == 25 and target_ema_long == 50:
-                # Switching to 25/50, so new current is 25/50, target for back is original
-                pass  # target is already 25/50
-            else:
-                # Switching back, target should be the original
-                target_ema_short, target_ema_long = original_ema_short, original_ema_long
             
             # Regenerate signal with target EMAs
             def run_blocking_calls():
@@ -1579,9 +1573,9 @@ async def on_interaction(interaction):
                     symbol_norm = normalize_symbol(symbol, exchange)
                     chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, symbol_norm, best_timeframe, exchange)
                     
-                    embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, all_results, exchange, original_ema_short, original_ema_long, direction)
+                    embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, all_results, exchange, original_ema_short, original_ema_long, direction, user_id)
                 else:
-                    embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
+                    embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction, user_id)
                 
                 if chart_buf:
                     file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
