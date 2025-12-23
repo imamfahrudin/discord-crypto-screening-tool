@@ -796,6 +796,14 @@ async def scan_command(ctx, *, args: str):
         else:
             await send_response(ctx, embed=embed, view=view)
 
+        # Add success reaction
+        message_obj = ctx.message if hasattr(ctx, 'message') else ctx
+        try:
+            await message_obj.remove_reaction('🫡', message_obj.guild.me)
+            await message_obj.add_reaction('✅')
+        except Exception:
+            pass
+
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
 def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None):
