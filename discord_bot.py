@@ -1455,6 +1455,45 @@ async def slash_ping(interaction: discord.Interaction):
 # ============================
 # Interaction Handlers
 # ============================
+async def scan_single_coin(coin, ema_short, ema_long, exchange):
+    """Scan a single coin with given EMA and return best result, timeframe, and all results"""
+    setups = [
+        ("1h", "long"),
+        ("1h", "short"), 
+        ("4h", "long"),
+        ("4h", "short"),
+    ]
+    
+    results = []
+    for timeframe, direction in setups:
+        def run_scan():
+            symbol_norm = normalize_symbol(coin, exchange)
+            if not pair_exists(symbol_norm, exchange):
+                return None
+            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+            return result
+        
+        try:
+            result = await bot.loop.run_in_executor(None, run_scan)
+            if result is None or isinstance(result, str):
+                continue
+            confidence = result.get('confidence', 0)
+            setup_str = f"${coin} {timeframe} {direction}"
+            results.append((confidence, setup_str, result))
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error scanning {coin} {timeframe} {direction}: {e}")
+            continue
+    
+    if not results:
+        return None, None, []
+    
+    # Find best result
+    best_result = max(results, key=lambda x: x[0])
+    best_confidence, best_setup, best_data = best_result
+    best_timeframe = best_setup.split()[1]  # "$COIN TIMEFRAME DIRECTION"
+    
+    return best_data, best_timeframe, results
+
 @bot.event
 async def on_interaction(interaction):
     if interaction.type == discord.InteractionType.component:
@@ -1516,9 +1555,16 @@ async def on_interaction(interaction):
                 is_scan = "(Scanned)" in interaction.message.embeds[0].title if interaction.message.embeds else False
                 
                 if is_scan:
-                    # For scan results, we need all results, but since we're regenerating, we only have one
-                    # This is a limitation - for simplicity, we'll regenerate as signal
-                    embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
+                    # Re-run scan with new EMA to find best setup
+                    best_data, best_timeframe, all_results = await scan_single_coin(symbol, target_ema_short, target_ema_long, exchange)
+                    if best_data is None:
+                        await interaction.followup.send(f"❌ Could not generate scan result for {symbol} with EMA {target_ema_short}/{target_ema_long}", ephemeral=True)
+                        return
+                    
+                    symbol_norm = normalize_symbol(symbol, exchange)
+                    chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, symbol_norm, best_timeframe, exchange)
+                    
+                    embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, all_results, exchange, original_ema_short, original_ema_long, direction)
                 else:
                     embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
                 
