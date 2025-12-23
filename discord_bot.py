@@ -379,12 +379,13 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         
         # Create embed
         print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
-        embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange)
+        user_id = ctx_or_message.author.id if hasattr(ctx_or_message, 'author') else (ctx_or_message.user.id if hasattr(ctx_or_message, 'user') else None)
+        embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, ema_short, ema_long, direction, user_id)
         
         # Send with chart attachment
         if chart_buf:
             print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
             await send_response(ctx_or_message, embed=embed, file=file, view=view)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
         else:
@@ -409,16 +410,19 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         await send_error(ctx_or_message, f"⚠️ Error menghasilkan sinyal. Cek log terminal: `{e}`")
         print(tb)
 
-def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit'):
+def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
     """Create embed from dict data (new format)"""
+    # Ensure original EMAs are not None
+    original_ema_short = original_ema_short or 13
+    original_ema_long = original_ema_long or 21
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
-    direction = data.get('direction', 'NETRAL').upper()
+    direction_val = data.get('direction', 'NETRAL').upper()
     
     # color & emoji
-    if direction == "LONG":
+    if direction_val == "LONG":
         color = 0x00FF88; emoji = "🟢"
-    elif direction == "SHORT":
+    elif direction_val == "SHORT":
         color = 0xFF5555; emoji = "🔴"
     else:
         color = 0xFFD700; emoji = "🟡"
@@ -437,7 +441,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     
     embed = discord.Embed(color=color)
     
-    if direction == "NETRAL":
+    if direction_val == "NETRAL":
         embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
@@ -458,8 +462,8 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
-        embed.title = f"{BOT_TITLE_PREFIX} {direction} {symbol}"
-        embed.description = f"{emoji} **{direction} Signal** for {symbol} on {timeframe.upper()} timeframe"
+        embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol}"
+        embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe"
         
         embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
@@ -484,7 +488,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     
     # Set chart as image (will be attached separately)
-    embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
+    embed.set_image(url=f"attachment://chart_{symbol}.png")
     
     # Create view with TradingView button
     view = discord.ui.View()
@@ -493,6 +497,26 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         label="📈 View on TradingView",
         url=tv_url,
         emoji="📊"
+    ))
+    
+    # Add EMA switch button
+    current_short = data.get('ema_short', 13)
+    current_long = data.get('ema_long', 21)
+    if current_short == 25 and current_long == 50:
+        if original_ema_short == 25 and original_ema_long == 50:
+            target_short, target_long = 13, 21
+            label = "Switch to EMA 13/21"
+        else:
+            target_short, target_long = original_ema_short, original_ema_long
+            label = f"Switch to EMA {original_ema_short}/{original_ema_long}"
+    else:
+        target_short, target_long = 25, 50
+        label = "Switch to EMA 25/50"
+    
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.secondary,
+        label=label,
+        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{current_short}:{current_long}:{target_short}:{target_long}:{original_ema_short}:{original_ema_long}:{show_detail}:{user_id or 0}"
     ))
     
     return embed, view
@@ -773,26 +797,37 @@ async def scan_command(ctx, *, args: str):
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
-        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange)
+        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id)
 
         # Send response
         if chart_buf:
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{best_timeframe}.png")
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
             await send_response(ctx, embed=embed, file=file, view=view)
         else:
             await send_response(ctx, embed=embed, view=view)
 
+        # Add success reaction
+        message_obj = ctx.message if hasattr(ctx, 'message') else ctx
+        try:
+            await message_obj.remove_reaction('🫡', message_obj.guild.me)
+            await message_obj.add_reaction('✅')
+        except Exception:
+            pass
+
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
-def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit'):
+def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
+    # Ensure original EMAs are not None
+    original_ema_short = original_ema_short or 13
+    original_ema_long = original_ema_long or 21
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
-    direction = data.get('direction', 'NETRAL').upper()
+    direction_val = data.get('direction', 'NETRAL').upper()
     
     # color & emoji
-    if direction == "LONG":
+    if direction_val == "LONG":
         color = 0x00FF88; emoji = "🟢"
-    elif direction == "SHORT":
+    elif direction_val == "SHORT":
         color = 0xFF5555; emoji = "🔴"
     else:
         color = 0xFFD700; emoji = "🟡"
@@ -811,7 +846,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     
     embed = discord.Embed(color=color)
     
-    if direction == "NETRAL":
+    if direction_val == "NETRAL":
         embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL (Scanned)"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
@@ -827,8 +862,8 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
-        embed.title = f"{BOT_TITLE_PREFIX} {direction} {symbol} (Scanned)"
-        embed.description = f"{emoji} **{direction} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from scan)"
+        embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol} (Scanned)"
+        embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from scan)"
         
         embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
@@ -859,7 +894,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     
     # Set chart as image
-    embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
+    embed.set_image(url=f"attachment://chart_{symbol}.png")
     
     # Create view with TradingView button
     view = discord.ui.View()
@@ -868,6 +903,26 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         label="📈 View on TradingView",
         url=tv_url,
         emoji="📊"
+    ))
+    
+    # Add EMA switch button
+    ema_short = data.get('ema_short', 13)
+    ema_long = data.get('ema_long', 21)
+    if ema_short == 25 and ema_long == 50:
+        if original_ema_short == 25 and original_ema_long == 50:
+            target_short, target_long = 13, 21
+            label = "Switch to EMA 13/21"
+        else:
+            target_short, target_long = original_ema_short, original_ema_long
+            label = f"Switch to EMA {original_ema_short}/{original_ema_long}"
+    else:
+        target_short, target_long = 25, 50
+        label = "Switch to EMA 25/50"
+    
+    view.add_item(discord.ui.Button(
+        style=discord.ButtonStyle.secondary,
+        label=label,
+        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:{original_ema_short}:{original_ema_long}:False:{user_id or 0}"  # show_detail=False for scan
     ))
     
     return embed, view
@@ -1321,7 +1376,7 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
 
         # Create embed with all confidences listed
-        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange)
+        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange, ema_short, ema_long, None, interaction.user.id)
 
         # Send response
         if chart_buf:
@@ -1421,6 +1476,155 @@ async def slash_ping(interaction: discord.Interaction):
     
     await interaction.followup.send(embed=embed)
     print(f"{LOG_PREFIX} ✅ Slash ping command completed")
+
+# ============================
+# Interaction Handlers
+# ============================
+async def scan_single_coin(coin, ema_short, ema_long, exchange):
+    """Scan a single coin with given EMA and return best result, timeframe, and all results"""
+    setups = [
+        ("1h", "long"),
+        ("1h", "short"), 
+        ("4h", "long"),
+        ("4h", "short"),
+    ]
+    
+    results = []
+    for timeframe, direction in setups:
+        def run_scan():
+            symbol_norm = normalize_symbol(coin, exchange)
+            if not pair_exists(symbol_norm, exchange):
+                return None
+            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+            return result
+        
+        try:
+            result = await bot.loop.run_in_executor(None, run_scan)
+            if result is None or isinstance(result, str):
+                continue
+            confidence = result.get('confidence', 0)
+            setup_str = f"${coin} {timeframe} {direction}"
+            results.append((confidence, setup_str, result))
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error scanning {coin} {timeframe} {direction}: {e}")
+            continue
+    
+    if not results:
+        return None, None, []
+    
+    # Find best result
+    best_result = max(results, key=lambda x: x[0])
+    best_confidence, best_setup, best_data = best_result
+    best_timeframe = best_setup.split()[1]  # "$COIN TIMEFRAME DIRECTION"
+    
+    return best_data, best_timeframe, results
+
+@bot.event
+async def on_interaction(interaction):
+    if interaction.type == discord.InteractionType.component:
+        custom_id = interaction.data['custom_id']
+        if custom_id.startswith("ema_switch:"):
+            parts = custom_id.split(":")
+            if len(parts) != 13:
+                await interaction.response.send_message("Invalid button data.", ephemeral=True)
+                return
+            
+            _, symbol, timeframe, direction, exchange, current_ema_short, current_ema_long, target_ema_short, target_ema_long, original_ema_short, original_ema_long, show_detail, user_id_str = parts
+            
+            # Convert types
+            current_ema_short = int(current_ema_short)
+            current_ema_long = int(current_ema_long)
+            target_ema_short = int(target_ema_short)
+            target_ema_long = int(target_ema_long)
+            original_ema_short = int(original_ema_short)
+            original_ema_long = int(original_ema_long)
+            show_detail = show_detail == "True"
+            direction = direction if direction != "None" else None
+            user_id = int(user_id_str) if user_id_str != "0" else None
+            
+            # Check if the user is the one who requested the signal
+            if user_id and user_id != interaction.user.id:
+                await interaction.response.send_message("Kamu hanya bisa menggunakan tombol switch EMA pada sinyal yang kamu minta.", ephemeral=True)
+                return
+            
+            await interaction.response.defer()
+            
+            # Regenerate signal with target EMAs
+            def run_blocking_calls():
+                symbol_norm = normalize_symbol(symbol)
+                if not pair_exists(symbol_norm, exchange):
+                    return f"❌ Pasangan `{symbol_norm}` tidak tersedia di {exchange.upper()}."
+                result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=target_ema_short, ema_long=target_ema_long)
+                return result
+            
+            try:
+                result = await bot.loop.run_in_executor(None, run_blocking_calls)
+                if isinstance(result, str):
+                    await interaction.followup.send(result, ephemeral=True)
+                    return
+                
+                symbol_norm = normalize_symbol(symbol, exchange)
+                chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe, exchange)
+                
+                # Check if this is a scan result by looking at the current embed title
+                is_scan = "(Scanned)" in interaction.message.embeds[0].title if interaction.message.embeds else False
+                
+                if is_scan:
+                    # Re-run scan with new EMA to find best setup
+                    best_data, best_timeframe, all_results = await scan_single_coin(symbol, target_ema_short, target_ema_long, exchange)
+                    if best_data is None:
+                        await interaction.followup.send(f"❌ Could not generate scan result for {symbol} with EMA {target_ema_short}/{target_ema_long}", ephemeral=True)
+                        return
+                    
+                    symbol_norm = normalize_symbol(symbol, exchange)
+                    chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, symbol_norm, best_timeframe, exchange)
+                    
+                    embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, all_results, exchange, original_ema_short, original_ema_long, direction, user_id)
+                else:
+                    embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction, user_id)
+                
+                if chart_buf:
+                    file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
+                    await interaction.message.edit(embed=embed, attachments=[file], view=view)
+                else:
+                    await interaction.message.edit(embed=embed, attachments=[], view=view)
+                    
+            except Exception as e:
+                await interaction.followup.send(f"Error updating signal: {e}", ephemeral=True)
+
+def parse_ema_from_message(content):
+    """Parse EMA values from message content"""
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+    
+    if content.startswith('$'):
+        parts = content[1:].strip().split()
+    elif content.startswith('!signal'):
+        parts = content[7:].strip().split()  # Remove !signal
+    else:
+        parts = content.split()
+    
+    emas = []
+    for part in parts:
+        part_lower = part.lower()
+        
+        # Skip known keywords and timeframes
+        if (part_lower in ['detail', 'binance', 'bybit', 'bitget', 'gateio', 'gate', 'long', 'short'] or 
+            part_lower in valid_tfs):
+            continue
+        
+        # Try to parse as EMA
+        ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
+        try:
+            ema_val = int(ema_str)
+            if 5 <= ema_val <= 200:
+                emas.append(ema_val)
+        except ValueError:
+            pass
+    
+    if len(emas) >= 2:
+        return emas[0], emas[1]
+    else:
+        return 13, 21  # defaults
 
 # ============================
 # Start bot
