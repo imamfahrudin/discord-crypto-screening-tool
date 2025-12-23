@@ -384,7 +384,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         # Send with chart attachment
         if chart_buf:
             print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
             await send_response(ctx_or_message, embed=embed, file=file, view=view)
             print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
         else:
@@ -484,7 +484,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     
     # Set chart as image (will be attached separately)
-    embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
+    embed.set_image(url=f"attachment://chart_{symbol}.png")
     
     # Create view with TradingView button
     view = discord.ui.View()
@@ -791,7 +791,7 @@ async def scan_command(ctx, *, args: str):
 
         # Send response
         if chart_buf:
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{best_timeframe}.png")
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
             await send_response(ctx, embed=embed, file=file, view=view)
         else:
             await send_response(ctx, embed=embed, view=view)
@@ -873,7 +873,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
     
     # Set chart as image
-    embed.set_image(url=f"attachment://chart_{symbol}_{timeframe}.png")
+    embed.set_image(url=f"attachment://chart_{symbol}.png")
     
     # Create view with TradingView button
     view = discord.ui.View()
@@ -1569,7 +1569,7 @@ async def on_interaction(interaction):
                     embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, original_ema_short, original_ema_long, direction)
                 
                 if chart_buf:
-                    file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
+                    file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
                     await interaction.message.edit(embed=embed, attachments=[file], view=view)
                 else:
                     await interaction.message.edit(embed=embed, attachments=[], view=view)
