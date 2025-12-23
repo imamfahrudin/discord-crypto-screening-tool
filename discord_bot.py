@@ -1524,7 +1524,7 @@ async def on_interaction(interaction):
                 
                 if chart_buf:
                     file = discord.File(chart_buf, filename=f"chart_{symbol_norm}_{timeframe}.png")
-                    await interaction.message.edit(embed=embed, file=file, attachments=[], view=view)
+                    await interaction.message.edit(embed=embed, attachments=[file], view=view)
                 else:
                     await interaction.message.edit(embed=embed, attachments=[], view=view)
                     
