@@ -379,7 +379,8 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         
         # Create embed
         print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
-        embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, ema_short, ema_long, direction)
+        user_id = ctx_or_message.author.id if hasattr(ctx_or_message, 'author') else (ctx_or_message.user.id if hasattr(ctx_or_message, 'user') else None)
+        embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, ema_short, ema_long, direction, user_id)
         
         # Send with chart attachment
         if chart_buf:
@@ -409,7 +410,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
         await send_error(ctx_or_message, f"⚠️ Error menghasilkan sinyal. Cek log terminal: `{e}`")
         print(tb)
 
-def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None):
+def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
     """Create embed from dict data (new format)"""
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
@@ -506,7 +507,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     view.add_item(discord.ui.Button(
         style=discord.ButtonStyle.secondary,
         label=label,
-        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:{show_detail}"
+        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:{show_detail}:{user_id or 0}"
     ))
     
     return embed, view
@@ -787,7 +788,7 @@ async def scan_command(ctx, *, args: str):
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
-        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None)
+        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id)
 
         # Send response
         if chart_buf:
@@ -806,7 +807,7 @@ async def scan_command(ctx, *, args: str):
 
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
-def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None):
+def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
     direction_val = data.get('direction', 'NETRAL').upper()
@@ -905,7 +906,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     view.add_item(discord.ui.Button(
         style=discord.ButtonStyle.secondary,
         label=label,
-        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:False"  # show_detail=False for scan
+        custom_id=f"ema_switch:{symbol.replace('USDT', '')}:{timeframe}:{direction or 'None'}:{exchange}:{ema_short}:{ema_long}:{target_short}:{target_long}:False:{user_id or 0}"  # show_detail=False for scan
     ))
     
     return embed, view
@@ -1359,7 +1360,7 @@ async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: in
         chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
 
         # Create embed with all confidences listed
-        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange, ema_short, ema_long, None)
+        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange, ema_short, ema_long, None, interaction.user.id)
 
         # Send response
         if chart_buf:
@@ -1508,11 +1509,11 @@ async def on_interaction(interaction):
         custom_id = interaction.data['custom_id']
         if custom_id.startswith("ema_switch:"):
             parts = custom_id.split(":")
-            if len(parts) != 10:
+            if len(parts) != 11:
                 await interaction.response.send_message("Invalid button data.", ephemeral=True)
                 return
             
-            _, symbol, timeframe, direction, exchange, current_ema_short, current_ema_long, target_ema_short, target_ema_long, show_detail = parts
+            _, symbol, timeframe, direction, exchange, current_ema_short, current_ema_long, target_ema_short, target_ema_long, show_detail, user_id_str = parts
             
             # Convert types
             current_ema_short = int(current_ema_short)
@@ -1521,6 +1522,12 @@ async def on_interaction(interaction):
             target_ema_long = int(target_ema_long)
             show_detail = show_detail == "True"
             direction = direction if direction != "None" else None
+            user_id = int(user_id_str) if user_id_str != "0" else None
+            
+            # Check if the user is the one who requested the signal
+            if user_id and user_id != interaction.user.id:
+                await interaction.response.send_message("You can only use EMA switch buttons on signals you requested.", ephemeral=True)
+                return
             
             await interaction.response.defer()
             
