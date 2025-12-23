@@ -412,6 +412,9 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
 
 def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
     """Create embed from dict data (new format)"""
+    # Ensure original EMAs are not None
+    original_ema_short = original_ema_short or 13
+    original_ema_long = original_ema_long or 21
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
     direction_val = data.get('direction', 'NETRAL').upper()
@@ -814,6 +817,9 @@ async def scan_command(ctx, *, args: str):
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
 def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
+    # Ensure original EMAs are not None
+    original_ema_short = original_ema_short or 13
+    original_ema_long = original_ema_long or 21
     current_time = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')
     
     direction_val = data.get('direction', 'NETRAL').upper()
