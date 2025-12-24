@@ -40,7 +40,8 @@ def generate_chart_from_data(data, symbol, timeframe):
             ob_low=data.get('ob_low'),
             current_price=data.get('current_price'),
             ema_short=data.get('ema_short', 13),
-            ema_long=data.get('ema_long', 21)
+            ema_long=data.get('ema_long', 21),
+            confidence=data.get('confidence')
         )
 
 def test_chart_generation(symbol="BTC", timeframe="1h", forced_direction=None):

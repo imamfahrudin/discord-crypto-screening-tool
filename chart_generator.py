@@ -8,6 +8,27 @@ from io import BytesIO
 from datetime import datetime
 import warnings
 
+def get_confidence_color(confidence: float) -> str:
+    """
+    Get color based on confidence level with gradient variants.
+    
+    Args:
+        confidence: Confidence percentage (0-100)
+        
+    Returns:
+        Hex color string
+    """
+    if confidence >= 90:
+        return '#00D4AA'  # Bright teal for very high confidence
+    elif confidence >= 80:
+        return '#00C896'  # Bright green-teal
+    elif confidence >= 70:
+        return '#00BC82'  # Green
+    elif confidence >= 60:
+        return '#8BC34A'  # Light green
+    else:
+        return '#FFD93D'  # Yellow for medium confidence and below
+
 def generate_chart_with_setup(df: pd.DataFrame, 
                                symbol: str, 
                                timeframe: str,
@@ -24,7 +45,8 @@ def generate_chart_with_setup(df: pd.DataFrame,
                                current_price: float = None,
                                ema_short: int = 13,
                                ema_long: int = 21,
-                               exchange: str = 'bybit') -> BytesIO:
+                               exchange: str = 'bybit',
+                               confidence: float = None) -> BytesIO:
     """
     Generate a candlestick chart with position setup visualization.
     
@@ -46,6 +68,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
         ema_short: Short EMA period (default 13)
         ema_long: Long EMA period (default 21)
         exchange: Exchange name (default 'bybit')
+        confidence: Confidence level as percentage (0-100, optional)
         
     Returns:
         BytesIO object containing the chart image
@@ -287,10 +310,21 @@ def generate_chart_with_setup(df: pd.DataFrame,
         # Position at top-left (shifted down a bit)
         ax.text(0.02, 0.95, direction_text,
                transform=ax.transAxes,
-               fontsize=18, fontweight='bold',
-               color=arrow_color,
+               fontsize=14, fontweight='bold',
+               color='#000000',  # Black text
                ha='left', va='top',
-               bbox=dict(boxstyle='round,pad=0.6', facecolor='#ffffff', edgecolor=arrow_color, linewidth=2, alpha=0.9))
+               bbox=dict(boxstyle='round,pad=0.4', facecolor=arrow_color, edgecolor='#000000', linewidth=2, alpha=0.75))
+        
+        # Add confidence text below direction indicator
+        if confidence is not None:
+            confidence_text = f'Confidence: {confidence:.1f}%'
+            confidence_color = get_confidence_color(confidence)
+            ax.text(0.02, 0.87, confidence_text,
+                   transform=ax.transAxes,
+                   fontsize=14, fontweight='bold',
+                   color='#000000',  # Black text
+                   ha='left', va='top',
+                   bbox=dict(boxstyle='round,pad=0.4', facecolor=confidence_color, edgecolor='#000000', linewidth=2, alpha=0.75))
     
     # Title and formatting with light theme
     timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
