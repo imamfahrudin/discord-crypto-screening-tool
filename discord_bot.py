@@ -242,7 +242,8 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str, exchange: 
                 current_price=data.get('current_price'),
                 ema_short=data.get('ema_short', 13),
                 ema_long=data.get('ema_long', 21),
-                exchange=exchange
+                exchange=exchange,
+                confidence=data.get('confidence')
             )
         
         if chart_buf:
