@@ -478,27 +478,17 @@ def generate_multi_comparison_chart(dfs: list,
         spine.set_edgecolor('black')
         spine.set_linewidth(1.5)
     
-    # Rotate x-axis labels
+    # Rotate x-axis labels and format dates
     plt.xticks(rotation=45, ha='right')
     
-    # Format x-axis dates based on timeframe
+    # Simple date formatting to avoid matplotlib tick overflow
     import matplotlib.dates as mdates
-    if timeframe in ['1m', '3m', '5m', '15m', '30m']:
-        # For minute timeframes, show hour:minute
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
-        ax.xaxis.set_major_locator(mdates.AutoDateLocator())
-    elif timeframe in ['1h', '2h', '4h', '6h']:
-        # For hour timeframes, show month-day
+    if timeframe in ['1h', '2h', '4h', '6h']:
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        ax.xaxis.set_major_locator(mdates.DayLocator())
     elif timeframe == '1d':
-        # For daily, show month-day
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
-        ax.xaxis.set_major_locator(mdates.WeekdayLocator())
     else:
-        # For weekly/monthly, show year-month
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        ax.xaxis.set_major_locator(mdates.MonthLocator())
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
     
     # Tight layout
     plt.tight_layout()
