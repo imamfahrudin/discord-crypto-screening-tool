@@ -481,6 +481,25 @@ def generate_multi_comparison_chart(dfs: list,
     # Rotate x-axis labels
     plt.xticks(rotation=45, ha='right')
     
+    # Format x-axis dates based on timeframe
+    import matplotlib.dates as mdates
+    if timeframe in ['1m', '3m', '5m', '15m', '30m']:
+        # For minute timeframes, show hour:minute
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+        ax.xaxis.set_major_locator(mdates.HourLocator(interval=6))  # Every 6 hours
+    elif timeframe in ['1h', '2h', '4h', '6h']:
+        # For hour timeframes, show month-day hour
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d %H:%M'))
+        ax.xaxis.set_major_locator(mdates.DayLocator())  # Every day
+    elif timeframe == '1d':
+        # For daily, show month-day
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=7))  # Every week
+    else:
+        # For weekly/monthly, show year-month
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+        ax.xaxis.set_major_locator(mdates.MonthLocator())
+    
     # Tight layout
     plt.tight_layout()
     
