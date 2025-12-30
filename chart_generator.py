@@ -396,39 +396,63 @@ def generate_comparison_chart(df1: pd.DataFrame,
     Generate a comparison chart showing two coins' normalized price movements.
     Both prices are normalized to start at 100 for easy comparison.
     """
+    return generate_multi_comparison_chart([df1, df2], [symbol1, symbol2], timeframe, [ema20_1, ema20_2], exchange)
+
+
+def generate_multi_comparison_chart(dfs: list,
+                                   symbols: list,
+                                   timeframe: str,
+                                   ema_series: list = None,
+                                   exchange: str = 'bybit') -> BytesIO:
+    """
+    Generate a comparison chart showing multiple coins' normalized price movements.
+    All prices are normalized to start at 100 for easy comparison.
+    """
     warnings.filterwarnings('ignore')
     
+    if len(dfs) != len(symbols):
+        raise ValueError("Number of dataframes must match number of symbols")
+    
+    if len(symbols) > 5:
+        raise ValueError("Maximum 5 coins can be compared")
+    
+    # Colors for different coins
+    colors = ['#00D4AA', '#FF6B9D', '#FFD93D', '#8BC34A', '#FF6B6B']
+    
     # Prepare dataframes
-    if not isinstance(df1.index, pd.DatetimeIndex):
-        if 'open_time' in df1.columns:
-            df1 = df1.set_index('open_time')
-        else:
-            df1.index = pd.to_datetime(df1.index)
-    
-    if not isinstance(df2.index, pd.DatetimeIndex):
-        if 'open_time' in df2.columns:
-            df2 = df2.set_index('open_time')
-        else:
-            df2.index = pd.to_datetime(df2.index)
-    
-    # Limit to last 100 candles
-    df1_plot = df1.tail(100).copy()
-    df2_plot = df2.tail(100).copy()
-    
-    # Normalize prices to 100 at start for comparison
-    df1_normalized = (df1_plot['close'] / df1_plot['close'].iloc[0]) * 100
-    df2_normalized = (df2_plot['close'] / df2_plot['close'].iloc[0]) * 100
+    normalized_data = []
+    for df in dfs:
+        if not isinstance(df.index, pd.DatetimeIndex):
+            if 'open_time' in df.columns:
+                df = df.set_index('open_time')
+            else:
+                df.index = pd.to_datetime(df.index)
+        
+        # Limit to last 100 candles
+        df_plot = df.tail(100).copy()
+        
+        # Normalize prices to 100 at start for comparison
+        normalized = (df_plot['close'] / df_plot['close'].iloc[0]) * 100
+        normalized_data.append(normalized)
     
     # Create figure with single subplot
     fig, ax = plt.subplots(figsize=(14, 7))
     fig.patch.set_facecolor('#ffffff')
     ax.set_facecolor('#f8f9fa')
     
-    # Plot normalized prices
-    ax.plot(df1_normalized.index, df1_normalized.values, 
-            color='#00D4AA', linewidth=2.5, label=f'{symbol1} (Normalized)', alpha=0.9)
-    ax.plot(df2_normalized.index, df2_normalized.values, 
-            color='#FF6B9D', linewidth=2.5, label=f'{symbol2} (Normalized)', alpha=0.9)
+    # Plot normalized prices for each coin
+    for i, (normalized, symbol) in enumerate(zip(normalized_data, symbols)):
+        ax.plot(normalized.index, normalized.values, 
+                color=colors[i % len(colors)], linewidth=2.5, 
+                label=f'{symbol} (Normalized)', alpha=0.9)
+        
+        # Plot EMA if available
+        if ema_series and i < len(ema_series) and ema_series[i] is not None:
+            # Normalize EMA to same scale as price
+            ema_normalized = (ema_series[i] / dfs[i]['close'].iloc[0]) * 100
+            ax.plot(ema_normalized.index, ema_normalized.values, 
+                    color=colors[i % len(colors)], linewidth=1.5, linestyle='--',
+                    label=f'{symbol} EMA20', alpha=0.7)
     
     # Add horizontal line at 100 (starting point)
     ax.axhline(y=100, color='#6c757d', linestyle='--', linewidth=1.5, alpha=0.5, label='Starting Point (100)')
@@ -439,8 +463,12 @@ def generate_comparison_chart(df1: pd.DataFrame,
     ax.set_ylabel('Normalized Price (Starting = 100)', fontsize=11, fontweight='bold', color='#2c3e50')
     
     # Title with exchange info
-    title = f'{symbol1} vs {symbol2} Comparison ({timeframe.upper()}) - {exchange.upper()}'
-    ax.set_title(title, fontsize=13, fontweight='bold', color='#2c3e50', pad=15)
+    if len(symbols) == 2:
+        title = f'{symbols[0]} vs {symbols[1]} Comparison ({timeframe.upper()}) - {exchange.upper()}'
+    else:
+        title = f'Multi-Coin Comparison ({timeframe.upper()}) - {exchange.upper()}'
+    subtitle = 'Normalized Price + EMA20 Indicators'
+    ax.set_title(f'{title}\n{subtitle}', fontsize=13, fontweight='bold', color='#2c3e50', pad=15)
     
     # Legend
     ax.legend(loc='upper left', fontsize=10, framealpha=0.9, edgecolor='#dee2e6')
