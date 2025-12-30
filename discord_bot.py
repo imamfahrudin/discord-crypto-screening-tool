@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
 from exchange_factory import normalize_symbol, pair_exists, get_all_pairs
 from utils import calculate_rr, format_price_dynamic
-from chart_generator import generate_chart_with_setup, generate_neutral_chart
+from chart_generator import generate_chart_with_setup, generate_neutral_chart, generate_comparison_chart
 
 LOG_PREFIX = "[discord_bot]"
 
@@ -250,6 +250,23 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str, exchange: 
         print(f"{LOG_PREFIX} ❌ Chart generation error: {e}")
         traceback.print_exc()
         return None
+
+def calculate_ema_comparison(symbol, timeframe, ema_period=20, exchange="bybit"):
+    """Calculate EMA comparison data for a symbol"""
+    result = generate_trade_plan(symbol, timeframe, exchange, return_dict=True, ema_short=ema_period, ema_long=ema_period+1)
+    if isinstance(result, str):
+        return None
+    df = result['df']
+    ema = df['close'].ewm(span=ema_period, adjust=False).mean()
+    current_price = result['current_price']
+    is_above = current_price > ema.iloc[-1]
+    return {
+        'data': result,
+        'is_above': is_above,
+        'ema_value': ema.iloc[-1],
+        'current_price': current_price,
+        'ema_series': ema
+    }
 
 # Helper functions for sending responses (works for both commands and direct messages)
 async def send_response(ctx_or_message, **kwargs):
@@ -610,6 +627,158 @@ async def signal_command(ctx, *args):
             return
     
     await generate_signal_response(ctx, symbol, timeframe, direction, exchange, ema_short, ema_long, show_detail)
+
+@bot.command(name="compare")
+async def compare_command(ctx, coin1: str, coin2: str, *args):
+    """
+    Compare two coins to see which outperforms by comparing price ratios.
+    Usage: !compare <coin1> <coin2> [timeframe] [exchange]
+    Default timeframe: 4h, Default exchange: bybit
+    Shows price ratio and normalized chart comparison.
+    """
+    print(f"{LOG_PREFIX} 🔍 Compare command triggered by {ctx.author} for {coin1} vs {coin2} with args: {args}")
+
+    # Parse arguments flexibly
+    timeframe = "4h"  # Default
+    exchange = "bybit"  # Default
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+    
+    for arg in args:
+        arg_lower = arg.lower()
+        
+        # Check if it's a timeframe
+        if arg_lower in valid_tfs:
+            if timeframe != "4h":  # Already set
+                await send_error(ctx, "⚠️ Timeframe hanya boleh satu.")
+                return
+            timeframe = arg_lower
+            continue
+            
+        # Check if it's an exchange
+        if arg_lower in ('binance', 'bybit', 'bitget', 'gateio', 'gate'):
+            if exchange != "bybit":  # Already set
+                await send_error(ctx, "⚠️ Exchange hanya boleh satu.")
+                return
+            if arg_lower == 'gate':
+                exchange = 'gateio'
+            else:
+                exchange = arg_lower
+            continue
+            
+        # Invalid argument
+        await send_error(ctx, f"⚠️ Parameter tidak valid: `{arg}`. Harus timeframe atau exchange.")
+        return
+
+    coin1_norm = normalize_symbol(coin1.upper())
+    coin2_norm = normalize_symbol(coin2.upper())
+
+    if not pair_exists(coin1_norm, exchange) or not pair_exists(coin2_norm, exchange):
+        await send_error(ctx, f"⚠️ One or both coins not available on {exchange.upper()}: {coin1_norm}, {coin2_norm}")
+        return
+
+    # Get data for both coins
+    def get_data(coin):
+        return calculate_ema_comparison(coin, timeframe, 20, exchange)
+
+    try:
+        data1 = await bot.loop.run_in_executor(None, get_data, coin1_norm)
+        data2 = await bot.loop.run_in_executor(None, get_data, coin2_norm)
+    except Exception as e:
+        print(f"{LOG_PREFIX} ❌ Error getting comparison data: {e}")
+        await send_error(ctx, "⚠️ Failed to get data for comparison")
+        return
+
+    if not data1 or not data2:
+        await send_error(ctx, "⚠️ Failed to get data for one or both coins")
+        return
+
+    # Calculate price ratio and performance
+    price1 = data1['current_price']
+    price2 = data2['current_price']
+    
+    # Get starting prices (first candle in the period)
+    start_price1 = data1['data']['df']['close'].iloc[0]
+    start_price2 = data2['data']['df']['close'].iloc[0]
+    
+    # Calculate percentage changes
+    change1 = ((price1 - start_price1) / start_price1) * 100
+    change2 = ((price2 - start_price2) / start_price2) * 100
+    
+    # Calculate ratio (how many times coin2 equals coin1)
+    price_ratio = price1 / price2
+    
+    # Determine which coin outperforms based on percentage change
+    performance_diff = change1 - change2
+    
+    if abs(performance_diff) < 0.5:  # Less than 0.5% difference
+        status = f"� **Similar Performance** (Difference: {abs(performance_diff):.2f}%)"
+        color = 0xFFD700
+        winner = None
+    elif performance_diff > 0:
+        status = f"� **{coin1_norm} Outperforms** by **{performance_diff:.2f}%**"
+        color = 0x00FF88
+        winner = coin1_norm
+    else:
+        status = f"🔴 **{coin2_norm} Outperforms** by **{abs(performance_diff):.2f}%**"
+        color = 0xFF5555
+        winner = coin2_norm
+
+    # Generate single comparison chart
+    try:
+        chart = await bot.loop.run_in_executor(None, generate_comparison_chart,
+            data1['data']['df'], data2['data']['df'],
+            coin1_norm, coin2_norm, timeframe,
+            data1['ema_series'], data2['ema_series'],
+            exchange)
+    except Exception as e:
+        print(f"{LOG_PREFIX} ❌ Error generating comparison chart: {e}")
+        traceback.print_exc()
+        await send_error(ctx, "⚠️ Failed to generate comparison chart")
+        return
+
+    # Create embed
+    embed = discord.Embed(
+        title=f"📊 Coin Comparison: {coin1_norm} vs {coin2_norm}",
+        description=f"Comparing performance on **{timeframe.upper()}** timeframe\n\n{status}",
+        color=color
+    )
+
+    embed.add_field(
+        name=f"📈 {coin1_norm}",
+        value=f"Price: `{format_price_dynamic(price1)}`\nChange: `{change1:+.2f}%`\nEMA 20: `{'Above' if data1['is_above'] else 'Below'}`",
+        inline=True
+    )
+    
+    embed.add_field(
+        name=f"📉 {coin2_norm}",
+        value=f"Price: `{format_price_dynamic(price2)}`\nChange: `{change2:+.2f}%`\nEMA 20: `{'Above' if data2['is_above'] else 'Below'}`",
+        inline=True
+    )
+    
+    embed.add_field(
+        name="🔢 Price Ratio",
+        value=f"`1 {coin1_norm} = {price_ratio:.6f} {coin2_norm}`",
+        inline=False
+    )
+    
+    if winner:
+        embed.add_field(
+            name="🏆 Performance Winner",
+            value=f"**{winner}** leads by **{abs(performance_diff):.2f}%**",
+            inline=False
+        )
+
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Timeframe: {timeframe} • Exchange: {exchange.upper()}")
+    
+    # Set chart as image
+    embed.set_image(url=f"attachment://comparison_{coin1_norm}_{coin2_norm}.png")
+
+    # Send with single chart
+    if chart:
+        file = discord.File(chart, filename=f"comparison_{coin1_norm}_{coin2_norm}.png")
+        await ctx.send(embed=embed, file=file)
+    else:
+        await ctx.send(embed=embed)
 
 @bot.command(name="scan")
 async def scan_command(ctx, *, args: str):
@@ -1239,6 +1408,7 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`!signal {coin} [timeframe] {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
             "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
             "🔹 **`!signal {coin} [timeframe] detail`** - Tampilkan analisis detail lengkap\n"
+            "🔹 **`!compare {coin1} {coin2} [timeframe] [exchange]`** - Bandingkan performa dua coin dengan rasio harga (default 4h, bybit)\n"
             "🔹 **`!scan {coin1,coin2,...}`** - Scan multiple coins (max 5), pilih setup dengan confidence tertinggi\n"
             "🔹 **`!scan {coin1 coin2 ...} ema20 ema50`** - Scan dengan custom EMA (format fleksibel, max 5 coins)\n"
             "🔹 **`!scalp {coin1,coin2,...}`** - Scalp multiple coins (max 5) pada timeframe 15m/30m long/short"
@@ -1283,6 +1453,10 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal BTC binance` → Gunakan data Binance Futures\n"
             "• `!signal BTC bitget` → Gunakan data Bitget Futures\n"
             "• `!signal BTC gateio` → Gunakan data Gate.io Futures\n"
+            "• `!compare BTC ETH` → Bandingkan performa BTC vs ETH pada 4h\n"
+            "• `!compare SOL AVAX 1h` → Bandingkan rasio harga SOL vs AVAX pada 1h\n"
+            "• `!compare BTC ETH binance` → Bandingkan menggunakan data Binance\n"
+            "• `!compare SOL AVAX 1h gateio` → Bandingkan pada 1h menggunakan Gate.io\n"
             "• `!scan BTC,ETH,SOL` → Scan BTC, ETH, SOL; pilih setup terbaik per coin\n"
             "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50\n"
             "• `!scalp BTC,ETH,SOL` → Scalp BTC, ETH, SOL pada 15m/30m long/short\n"
@@ -1298,6 +1472,8 @@ async def slash_help(interaction: discord.Interaction):
             "• `!scan BTC ETH binance` → Scan dengan data Binance\n"
             "• `!scan BTC ETH bitget` → Scan dengan data Bitget\n"
             "• `!scan BTC ETH gateio` → Scan dengan data Gate.io\n"
+            "• `!compare BTC ETH binance` → Bandingkan menggunakan data Binance\n"
+            "• `!compare SOL AVAX 1h gateio` → Bandingkan pada 1h menggunakan Gate.io\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"

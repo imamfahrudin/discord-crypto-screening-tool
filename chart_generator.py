@@ -382,3 +382,85 @@ def generate_neutral_chart(df: pd.DataFrame,
         ema_long=ema_long,
         exchange=exchange
     )
+
+
+def generate_comparison_chart(df1: pd.DataFrame,
+                               df2: pd.DataFrame,
+                               symbol1: str,
+                               symbol2: str,
+                               timeframe: str,
+                               ema20_1: pd.Series = None,
+                               ema20_2: pd.Series = None,
+                               exchange: str = 'bybit') -> BytesIO:
+    """
+    Generate a comparison chart showing two coins' normalized price movements.
+    Both prices are normalized to start at 100 for easy comparison.
+    """
+    warnings.filterwarnings('ignore')
+    
+    # Prepare dataframes
+    if not isinstance(df1.index, pd.DatetimeIndex):
+        if 'open_time' in df1.columns:
+            df1 = df1.set_index('open_time')
+        else:
+            df1.index = pd.to_datetime(df1.index)
+    
+    if not isinstance(df2.index, pd.DatetimeIndex):
+        if 'open_time' in df2.columns:
+            df2 = df2.set_index('open_time')
+        else:
+            df2.index = pd.to_datetime(df2.index)
+    
+    # Limit to last 100 candles
+    df1_plot = df1.tail(100).copy()
+    df2_plot = df2.tail(100).copy()
+    
+    # Normalize prices to 100 at start for comparison
+    df1_normalized = (df1_plot['close'] / df1_plot['close'].iloc[0]) * 100
+    df2_normalized = (df2_plot['close'] / df2_plot['close'].iloc[0]) * 100
+    
+    # Create figure with single subplot
+    fig, ax = plt.subplots(figsize=(14, 7))
+    fig.patch.set_facecolor('#ffffff')
+    ax.set_facecolor('#f8f9fa')
+    
+    # Plot normalized prices
+    ax.plot(df1_normalized.index, df1_normalized.values, 
+            color='#00D4AA', linewidth=2.5, label=f'{symbol1} (Normalized)', alpha=0.9)
+    ax.plot(df2_normalized.index, df2_normalized.values, 
+            color='#FF6B9D', linewidth=2.5, label=f'{symbol2} (Normalized)', alpha=0.9)
+    
+    # Add horizontal line at 100 (starting point)
+    ax.axhline(y=100, color='#6c757d', linestyle='--', linewidth=1.5, alpha=0.5, label='Starting Point (100)')
+    
+    # Styling
+    ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.5)
+    ax.set_xlabel('Time', fontsize=11, fontweight='bold', color='#2c3e50')
+    ax.set_ylabel('Normalized Price (Starting = 100)', fontsize=11, fontweight='bold', color='#2c3e50')
+    
+    # Title with exchange info
+    title = f'{symbol1} vs {symbol2} Comparison ({timeframe.upper()}) - {exchange.upper()}'
+    ax.set_title(title, fontsize=13, fontweight='bold', color='#2c3e50', pad=15)
+    
+    # Legend
+    ax.legend(loc='upper left', fontsize=10, framealpha=0.9, edgecolor='#dee2e6')
+    
+    # Spine styling
+    for spine in ax.spines.values():
+        spine.set_edgecolor('black')
+        spine.set_linewidth(1.5)
+    
+    # Rotate x-axis labels
+    plt.xticks(rotation=45, ha='right')
+    
+    # Tight layout
+    plt.tight_layout()
+    
+    # Save to BytesIO
+    buf = BytesIO()
+    fig.savefig(buf, format='png', dpi=200, facecolor='#ffffff', edgecolor='none', bbox_inches='tight')
+    buf.seek(0)
+    
+    plt.close(fig)
+    
+    return buf
