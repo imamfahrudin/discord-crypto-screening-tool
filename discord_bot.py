@@ -788,7 +788,7 @@ async def scan_command(ctx, *, args: str):
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
-        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id)
+        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id, "Scanned")
 
         # Send response
         if chart_buf:
@@ -807,7 +807,203 @@ async def scan_command(ctx, *, args: str):
 
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
 
-def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
+@bot.command(name="scalp")
+async def scalp_command(ctx, *, args: str):
+    """
+    Scalp multiple coins for the best trading signal setup on short timeframes (15m, 30m).
+    Usage: !scalp <coin1 coin2 ...> [ema_short] [ema_long] [binance]
+    Or: !scalp <coin1,coin2,...> [ema_short] [ema_long] [binance]
+    For each coin, checks 15m/30m long/short setups and selects the one with highest confidence.
+    Maximum 5 coins per scalp.
+    """
+    if not args.strip():
+        await send_error(ctx, "⚠️ Format: `!scalp COIN1 COIN2 ... [ema_short] [ema_long] [binance]`\nOr: `!scalp COIN1,COIN2,... [ema_short] [ema_long] [binance]`\nContoh: `!scalp BTC ETH SOL` atau `!scalp BTC,ETH ema20 ema50` atau `!scalp BTC ETH binance`")
+        return
+
+    parts = args.split()
+    if len(parts) < 1:
+        await send_error(ctx, "⚠️ Format: `!scalp COIN1 COIN2 ... [ema_short] [ema_long] [binance]`\nOr: `!scalp COIN1,COIN2,... [ema_short] [ema_long] [binance]`\nContoh: `!scalp BTC ETH SOL` atau `!scalp BTC,ETH ema20 ema50` atau `!scalp BTC ETH binance`")
+        return
+
+    # Flexible parsing: collect coins, EMAs, and exchange
+    coins = []
+    emas = []
+    exchange = "bybit"  # Default exchange
+    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+
+    for part in parts:
+        part_lower = part.lower()
+        
+        # Check if it's an exchange
+        if part_lower in ('binance', 'bybit', 'bitget', 'gateio', 'gate'):
+            # Normalize 'gate' to 'gateio'
+            exchange = 'gateio' if part_lower == 'gate' else part_lower
+            print(f"{LOG_PREFIX} 🏦 Exchange set to: {exchange}")
+            continue
+        
+        # Try to parse as EMA
+        ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
+        try:
+            ema_val = int(ema_str)
+            emas.append(ema_val)
+        except ValueError:
+            # Assume it's a coin (possibly comma-separated)
+            coins.append(part.strip().upper())
+
+    # Process coins (split by comma if needed)
+    coins_list = []
+    for coin_part in coins:
+        coins_list.extend([c.strip() for c in coin_part.split(',') if c.strip()])
+    
+    coins_final = [c for c in coins_list if c]
+    
+    if not coins_final:
+        await send_error(ctx, "⚠️ Tidak ada koin yang valid diberikan.")
+        return
+    
+    # Limit to 5 coins per scalp to prevent abuse
+    if len(coins_final) > 5:
+        await send_error(ctx, f"⚠️ Terlalu banyak koin! Maksimal 5 koin per scalp. Anda memberikan {len(coins_final)} koin.")
+        return
+
+    # Validate EMAs
+    ema_short = None
+    ema_long = None
+
+    if len(emas) == 2:
+        ema_short, ema_long = emas
+    elif len(emas) == 1:
+        await send_error(ctx, "⚠️ Jika memberikan EMA, harus berpasangan (short dan long).")
+        return
+    elif len(emas) > 2:
+        await send_error(ctx, "⚠️ EMA maksimal 2 nilai (short dan long).")
+        return
+    else:
+        ema_short = 13  # Default
+        ema_long = 21   # Default
+
+    # Validation for EMAs
+    if ema_short >= ema_long:
+        await send_error(ctx, "⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
+        return
+    if ema_short < 5 or ema_long > 200:
+        await send_error(ctx, "⚠️ Periode EMA harus antara 5 dan 200.")
+        return
+
+    print(f"{LOG_PREFIX} 🔍 Scalp command triggered by {ctx.author} for coins: {coins_final} with EMA {ema_short}/{ema_long} on {exchange.upper()}")
+
+    # Define all setups to check (short timeframes for scalping)
+    setups = [
+        ("15m", "long"),   # $coin 15m long
+        ("15m", "short"),  # $coin 15m short
+        ("30m", "long"),   # $coin 30m long
+        ("30m", "short"),  # $coin 30m short
+    ]
+
+    # Create all scalp tasks for parallel execution
+    scalp_tasks = []
+    for coin in coins_final:
+        # Check if coin looks like a timeframe or direction - hint to use $ command
+        coin_lower = coin.lower()
+        if coin_lower in [t.lower() for t in valid_tfs] or coin_lower in ('long', 'short', 'detail'):
+            await send_error(ctx, f"⚠️ '{coin}' terlihat seperti parameter untuk sinyal tunggal. Jika Anda ingin sinyal tunggal, gunakan perintah `$` seperti `$BTC 1d long detail`.")
+            continue
+
+        for timeframe, direction in setups:
+            setup_str = f"${coin} {timeframe}"
+            if direction:
+                setup_str += f" {direction}"
+
+            # Append custom EMA values if not using defaults (13/21)
+            if ema_short != 13 or ema_long != 21:
+                setup_str += f" ema{ema_short} ema{ema_long}"
+
+            scalp_tasks.append((coin, timeframe, direction, setup_str))
+
+    print(f"{LOG_PREFIX} 🚀 Starting parallel scalp for {len(scalp_tasks)} setups across {len(coins_final)} coins")
+
+    # Execute all scalps in parallel
+    async def run_single_scalp(coin, timeframe, direction, setup_str):
+        def run_scalp():
+            symbol_norm = normalize_symbol(coin, exchange)
+            if not pair_exists(symbol_norm, exchange):
+                return None
+            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
+            return result, setup_str
+
+        try:
+            result_tuple = await bot.loop.run_in_executor(None, run_scalp)
+            if result_tuple is None:
+                print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
+                return None
+            result, setup_str = result_tuple
+            if isinstance(result, str):
+                print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
+                return None
+            confidence = result.get('confidence', 0)
+            print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
+            return (coin, confidence, setup_str, result)
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Error scalping {setup_str}: {e}")
+            return None
+
+    # Create and run all tasks concurrently
+    tasks = [run_single_scalp(coin, tf, dir, setup) for coin, tf, dir, setup in scalp_tasks]
+    scalp_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Group results by coin
+    coin_results = {}
+    for result in scalp_results:
+        if result is None or isinstance(result, Exception):
+            continue
+        coin, confidence, setup_str, data = result
+        if coin not in coin_results:
+            coin_results[coin] = []
+        coin_results[coin].append((confidence, setup_str, data))
+
+    # Process results for each coin
+    for coin in coins_final:
+        if coin not in coin_results or not coin_results[coin]:
+            await send_error(ctx, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
+            continue
+
+        results = coin_results[coin]
+
+        # Find the best result (highest confidence)
+        best_result = max(results, key=lambda x: x[0])
+        best_confidence, best_setup, best_data = best_result
+
+        # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
+        # Split: ['$BTC', '15m', 'long'] -> index 1 is timeframe
+        best_timeframe = best_setup.split()[1]
+
+        print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
+
+        # Generate chart for best result
+        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
+
+        # Create embed with all confidences listed
+        symbol_norm = normalize_symbol(coin, exchange)
+        embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id, "Scalped")
+
+        # Send response
+        if chart_buf:
+            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
+            await send_response(ctx, embed=embed, file=file, view=view)
+        else:
+            await send_response(ctx, embed=embed, view=view)
+
+        # Add success reaction
+        message_obj = ctx.message if hasattr(ctx, 'message') else ctx
+        try:
+            await message_obj.remove_reaction('🫡', message_obj.guild.me)
+            await message_obj.add_reaction('✅')
+        except Exception:
+            pass
+
+        print(f"{LOG_PREFIX} ✅ Scalp result sent for {coin}")
+
+def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None, scan_type: str = "Scanned"):
     # Ensure original EMAs are not None
     original_ema_short = original_ema_short or 13
     original_ema_long = original_ema_long or 21
@@ -838,7 +1034,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     embed = discord.Embed(color=color)
     
     if direction_val == "NETRAL":
-        embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL (Scanned)"
+        embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL ({scan_type})"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
@@ -853,8 +1049,8 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
-        embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol} (Scanned)"
-        embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from scan)"
+        embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol} ({scan_type})"
+        embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from {scan_type.lower()})"
         
         embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
@@ -879,7 +1075,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         else:
             confidence_items.append(f"• {conf}% - `{setup}`")
     confidence_list = "\n".join(confidence_items)
-    embed.add_field(name="📋 All Confidences (Scanned Setups)", value=confidence_list, inline=False)
+    embed.add_field(name=f"📋 All Confidences ({scan_type} Setups)", value=confidence_list, inline=False)
     
     last_price_fmt = format_price_dynamic(data.get('current_price'))
     embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
@@ -1044,7 +1240,8 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`!signal {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
             "🔹 **`!signal {coin} [timeframe] detail`** - Tampilkan analisis detail lengkap\n"
             "🔹 **`!scan {coin1,coin2,...}`** - Scan multiple coins (max 5), pilih setup dengan confidence tertinggi\n"
-            "🔹 **`!scan {coin1 coin2 ...} ema20 ema50`** - Scan dengan custom EMA (format fleksibel, max 5 coins)"
+            "🔹 **`!scan {coin1 coin2 ...} ema20 ema50`** - Scan dengan custom EMA (format fleksibel, max 5 coins)\n"
+            "🔹 **`!scalp {coin1,coin2,...}`** - Scalp multiple coins (max 5) pada timeframe 15m/30m long/short"
         ),
         inline=False
     )
@@ -1087,7 +1284,9 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal BTC bitget` → Gunakan data Bitget Futures\n"
             "• `!signal BTC gateio` → Gunakan data Gate.io Futures\n"
             "• `!scan BTC,ETH,SOL` → Scan BTC, ETH, SOL; pilih setup terbaik per coin\n"
-            "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50"
+            "• `!scan BTC,ETH ema20 ema50` → Scan dengan EMA 20/50\n"
+            "• `!scalp BTC,ETH,SOL` → Scalp BTC, ETH, SOL pada 15m/30m long/short\n"
+            "• `!scalp BTC ETH ema20 ema50` → Scalp dengan custom EMA"
         ),
         inline=True
     )
