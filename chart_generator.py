@@ -419,6 +419,14 @@ def generate_comparison_chart(df1: pd.DataFrame,
     df1_normalized = (df1_plot['close'] / df1_plot['close'].iloc[0]) * 100
     df2_normalized = (df2_plot['close'] / df2_plot['close'].iloc[0]) * 100
     
+    # Normalize EMA values if provided
+    ema1_normalized = None
+    ema2_normalized = None
+    if ema20_1 is not None:
+        ema1_normalized = (ema20_1.tail(100) / df1_plot['close'].iloc[0]) * 100
+    if ema20_2 is not None:
+        ema2_normalized = (ema20_2.tail(100) / df2_plot['close'].iloc[0]) * 100
+    
     # Create figure with single subplot
     fig, ax = plt.subplots(figsize=(14, 7))
     fig.patch.set_facecolor('#ffffff')
@@ -429,6 +437,14 @@ def generate_comparison_chart(df1: pd.DataFrame,
             color='#00D4AA', linewidth=2.5, label=f'{symbol1} (Normalized)', alpha=0.9)
     ax.plot(df2_normalized.index, df2_normalized.values, 
             color='#FF6B9D', linewidth=2.5, label=f'{symbol2} (Normalized)', alpha=0.9)
+    
+    # Plot EMA lines if available
+    if ema1_normalized is not None:
+        ax.plot(ema1_normalized.index, ema1_normalized.values, 
+                color='#00BFFF', linewidth=2, linestyle='--', label=f'{symbol1} EMA 20', alpha=0.7)
+    if ema2_normalized is not None:
+        ax.plot(ema2_normalized.index, ema2_normalized.values, 
+                color='#FF4444', linewidth=2, linestyle='--', label=f'{symbol2} EMA 20', alpha=0.7)
     
     # Add horizontal line at 100 (starting point)
     ax.axhline(y=100, color='#6c757d', linestyle='--', linewidth=1.5, alpha=0.5, label='Starting Point (100)')

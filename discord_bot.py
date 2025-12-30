@@ -739,7 +739,7 @@ async def compare_command(ctx, coin1: str, coin2: str, *args):
     # Create embed
     embed = discord.Embed(
         title=f"📊 Coin Comparison: {coin1_norm} vs {coin2_norm}",
-        description=f"Comparing performance on **{timeframe.upper()}** timeframe\n\n{status}",
+        description=f"Comparing performance on **{timeframe.upper()}** timeframe with EMA 20 indicators\n\n{status}",
         color=color
     )
 
