@@ -132,11 +132,6 @@ async def on_message(message):
                 direction = part_lower
                 continue
             
-            # Check if it's detail flag
-            if part_lower == 'detail':
-                show_detail = True
-                continue
-            
             # Try to parse as EMA
             ema_str = part_lower.replace('ema', '') if part_lower.startswith('ema') else part_lower
             try:
@@ -577,11 +572,6 @@ async def signal_command(ctx, *args):
                 await send_error(ctx, "⚠️ Direction hanya boleh satu.")
                 return
             direction = part_lower
-            continue
-        
-        # Check if it's detail flag
-        if part_lower == 'detail':
-            show_detail = True
             continue
         
         # Try to parse as EMA
@@ -1065,7 +1055,6 @@ async def slash_help(interaction: discord.Interaction):
             "🔹 **`$ {coin} [timeframe]`** - Perintah cepat (timeframe default 1h)\n"
             "🔹 **`$ {coin} [timeframe] {long/short}`** - Perintah cepat spesifik\n"
             "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
-            "🔹 **`$ {coin} [timeframe] detail`** - Perintah cepat dengan analisis detail\n"
             "🔹 **`!coinlist [binance]`** - Lihat daftar coin yang tersedia"
         ),
         inline=False
@@ -1094,7 +1083,6 @@ async def slash_help(interaction: discord.Interaction):
             "• `!signal SOL 1d short` → Short SOL/USDT harian\n"
             "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
-            "• `!signal BTC 1h detail` → Sinyal dengan analisis detail\n"
             "• `!signal BTC binance` → Gunakan data Binance Futures\n"
             "• `!signal BTC bitget` → Gunakan data Bitget Futures\n"
             "• `!signal BTC gateio` → Gunakan data Gate.io Futures\n"
@@ -1115,7 +1103,6 @@ async def slash_help(interaction: discord.Interaction):
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
-            "• `$BTC 1h detail` → Cepat dengan analisis detail\n"
             "• `$BTC gateio` → Cepat dengan data Gate.io"
         ),
         inline=True
