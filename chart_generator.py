@@ -416,9 +416,6 @@ def generate_multi_comparison_chart(dfs: list,
     if len(symbols) > 5:
         raise ValueError("Maximum 5 coins can be compared")
     
-    # Import matplotlib dates for date handling
-    import matplotlib.dates as mdates
-    
     # Colors for different coins
     colors = ['#00D4AA', '#FF6B9D', '#FFD93D', '#8BC34A', '#FF6B6B']
     
@@ -445,9 +442,7 @@ def generate_multi_comparison_chart(dfs: list,
     
     # Plot normalized prices for each coin
     for i, (normalized, symbol) in enumerate(zip(normalized_data, symbols)):
-        # Convert datetime index to matplotlib dates for proper formatting
-        dates = mdates.date2num(normalized.index)
-        ax.plot(dates, normalized.values, 
+        ax.plot(normalized.index, normalized.values, 
                 color=colors[i % len(colors)], linewidth=2.5, 
                 label=f'{symbol} (Normalized)', alpha=0.9)
         
@@ -455,8 +450,7 @@ def generate_multi_comparison_chart(dfs: list,
         if ema_series and i < len(ema_series) and ema_series[i] is not None:
             # Normalize EMA to same scale as price
             ema_normalized = (ema_series[i] / dfs[i]['close'].iloc[0]) * 100
-            ema_dates = mdates.date2num(ema_normalized.index)
-            ax.plot(ema_dates, ema_normalized.values, 
+            ax.plot(ema_normalized.index, ema_normalized.values, 
                     color=colors[i % len(colors)], linewidth=1.5, linestyle='--',
                     label=f'{symbol} EMA20', alpha=0.7)
     
@@ -488,7 +482,7 @@ def generate_multi_comparison_chart(dfs: list,
     plt.xticks(rotation=45, ha='right')
     
     # Simple date formatting to avoid matplotlib tick overflow
-    ax.xaxis_date()  # Tell matplotlib this is a date axis
+    import matplotlib.dates as mdates
     if timeframe in ['1h', '2h', '4h', '6h']:
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d'))
     elif timeframe == '1d':
