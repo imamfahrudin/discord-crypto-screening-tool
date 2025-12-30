@@ -1048,7 +1048,6 @@ async def slash_help(interaction: discord.Interaction):
     embed.add_field(
         name="📊 **Perintah Sinyal Trading** (1/2)",
         value=(
-            "🔹 **`/signal`** - Generate sinyal trading interaktif dengan dropdown (support custom EMA dan detail)\n"
             "🔹 **`!signal {coin} [timeframe]`** - Cek sinyal (timeframe default 1h)\n"
             "🔹 **`!signal {coin} [timeframe] {long/short}`** - Cek sinyal spesifik arah\n"
             "🔹 **`!signal {coin} [timeframe] {long/short} {ema_short} {ema_long}`** - Custom EMA\n"
@@ -1063,13 +1062,11 @@ async def slash_help(interaction: discord.Interaction):
     embed.add_field(
         name="📊 **Perintah Sinyal Trading** (2/2)",
         value=(
-            "🔹 **`/scan`** - Slash command untuk scan multiple coins dengan custom EMA\n"
             "🔹 **`$ {coin} [timeframe]`** - Perintah cepat (timeframe default 1h)\n"
             "🔹 **`$ {coin} [timeframe] {long/short}`** - Perintah cepat spesifik\n"
             "🔹 **`$ {coin} {long/short} {ema_short} {ema_long} [timeframe]`** - Urutan bebas setelah coin\n"
             "🔹 **`$ {coin} [timeframe] detail`** - Perintah cepat dengan analisis detail\n"
-            "🔹 **`!coinlist [binance]`** - Lihat daftar coin yang tersedia\n"
-            "🔹 **`/coinlist [exchange]`** - Slash command untuk daftar coin"
+            "🔹 **`!coinlist [binance]`** - Lihat daftar coin yang tersedia"
         ),
         inline=False
     )
@@ -1077,8 +1074,7 @@ async def slash_help(interaction: discord.Interaction):
     embed.add_field(
         name="🏓 **Ping & Benchmark**",
         value=(
-            "🔹 **`!ping`** - Check bot latency dan benchmark response time untuk semua exchange\n"
-            "🔹 **`/ping`** - Slash command untuk ping dan benchmark exchange"
+            "🔹 **`!ping`** - Check bot latency dan benchmark response time untuk semua exchange"
         ),
         inline=False
     )
@@ -1115,14 +1111,12 @@ async def slash_help(interaction: discord.Interaction):
             "• `!scan BTC ETH binance` → Scan dengan data Binance\n"
             "• `!scan BTC ETH bitget` → Scan dengan data Bitget\n"
             "• `!scan BTC ETH gateio` → Scan dengan data Gate.io\n"
-            "• `/scan BTC,ETH,SOL` → Slash scan untuk BTC, ETH, SOL\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
             "• `$BTC 1h` → Cepat BTC 1 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
             "• `$BTC 1h detail` → Cepat dengan analisis detail\n"
-            "• `$BTC gateio` → Cepat dengan data Gate.io\n"
-            "• `/signal` → Slash command interaktif (support custom EMA)"
+            "• `$BTC gateio` → Cepat dengan data Gate.io"
         ),
         inline=True
     )
@@ -1170,313 +1164,13 @@ async def slash_help(interaction: discord.Interaction):
         # Fallback: send directly to channel
         await interaction.channel.send(embed=embed)
 
-@tree.command(name="signal", description="Generate crypto trading signal with custom EMAs and optional detail")
-@discord.app_commands.describe(
-    symbol="Trading pair symbol (e.g., BTCUSDT)",
-    timeframe="Timeframe for the signal",
-    direction="Direction: Auto, Long, or Short",
-    ema_short="Short EMA period (default: 13)",
-    ema_long="Long EMA period (default: 21)",
-    detail="Show detailed analysis (default: False)",
-    exchange="Exchange to use (binance, bybit, bitget, or gateio, default: bybit)"
-)
-@discord.app_commands.choices(timeframe=[
-    discord.app_commands.Choice(name="1m", value="1m"),
-    discord.app_commands.Choice(name="3m", value="3m"),
-    discord.app_commands.Choice(name="5m", value="5m"),
-    discord.app_commands.Choice(name="15m", value="15m"),
-    discord.app_commands.Choice(name="30m", value="30m"),
-    discord.app_commands.Choice(name="1h", value="1h"),
-    discord.app_commands.Choice(name="4h", value="4h"),
-    discord.app_commands.Choice(name="1d", value="1d")
-])
-@discord.app_commands.choices(direction=[
-    discord.app_commands.Choice(name="Auto", value="auto"),
-    discord.app_commands.Choice(name="Long", value="long"),
-    discord.app_commands.Choice(name="Short", value="short")
-])
-@discord.app_commands.choices(exchange=[
-    discord.app_commands.Choice(name="Bybit", value="bybit"),
-    discord.app_commands.Choice(name="Binance", value="binance"),
-    discord.app_commands.Choice(name="Bitget", value="bitget"),
-    discord.app_commands.Choice(name="Gate.io", value="gateio")
-])
-async def slash_signal(interaction: discord.Interaction, symbol: str, timeframe: str, direction: str, ema_short: int = 13, ema_long: int = 21, detail: bool = False, exchange: str = "bybit"):
-    print(f"{LOG_PREFIX} ⚡ Slash signal command triggered by {interaction.user}: symbol={symbol}, timeframe={timeframe}, direction={direction}, ema_short={ema_short}, ema_long={ema_long}, detail={detail}, exchange={exchange}")
-    
-    await interaction.response.defer()
-    print(f"{LOG_PREFIX} ⏳ Deferred slash command response")
 
-    # Validation for EMAs
-    if ema_short >= ema_long:
-        print(f"{LOG_PREFIX} ⚠️ Invalid EMA values in slash command: short({ema_short}) >= long({ema_long})")
-        await interaction.followup.send("⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
-        return
-    if ema_short < 5 or ema_long > 200:
-        print(f"{LOG_PREFIX} ⚠️ EMA values out of range in slash command: short({ema_short}), long({ema_long})")
-        await interaction.followup.send("⚠️ Periode EMA harus antara 5 dan 200.")
-        return
 
-    forced = None
-    if direction and direction.lower() != 'auto':
-        dir_norm = direction.strip().lower()
-        if dir_norm not in ('long','short'):
-            print(f"{LOG_PREFIX} ⚠️ Invalid direction in slash command: {direction}")
-            await interaction.followup.send("⚠️ Direction harus 'auto', 'long', atau 'short'.")
-            return
-        forced = dir_norm
 
-    print(f"{LOG_PREFIX} 🚀 Processing slash signal generation")
-    # Create a mock context-like object for the helper function
-    class MockInteraction:
-        def __init__(self, interaction):
-            self.interaction = interaction
-        
-        async def send(self, **kwargs):
-            await self.interaction.followup.send(**kwargs)
 
-    mock_ctx = MockInteraction(interaction)
-    await generate_signal_response(mock_ctx, symbol, timeframe, forced, exchange, ema_short, ema_long, detail)
-    print(f"{LOG_PREFIX} ✅ Slash signal command completed")
 
-@tree.command(name="scan", description="Scan multiple coins for the best trading signal setup")
-@discord.app_commands.describe(
-    coins="Coins to scan (comma or space separated, max 5)",
-    ema_short="Short EMA period (default: 13)",
-    ema_long="Long EMA period (default: 21)",
-    exchange="Exchange to use (binance, bybit, bitget, or gateio, default: bybit)"
-)
-@discord.app_commands.choices(exchange=[
-    discord.app_commands.Choice(name="Bybit", value="bybit"),
-    discord.app_commands.Choice(name="Binance", value="binance"),
-    discord.app_commands.Choice(name="Bitget", value="bitget"),
-    discord.app_commands.Choice(name="Gate.io", value="gateio")
-])
-async def slash_scan(interaction: discord.Interaction, coins: str, ema_short: int = 13, ema_long: int = 21, exchange: str = "bybit"):
-    print(f"{LOG_PREFIX} 🔍 Slash scan command triggered by {interaction.user}: coins='{coins}', ema_short={ema_short}, ema_long={ema_long}, exchange={exchange}")
-    
-    await interaction.response.defer()
-    print(f"{LOG_PREFIX} ⏳ Deferred slash scan command response")
 
-    # Validation for EMAs
-    if ema_short >= ema_long:
-        print(f"{LOG_PREFIX} ⚠️ Invalid EMA values in slash scan: short({ema_short}) >= long({ema_long})")
-        await interaction.followup.send("⚠️ EMA pendek harus lebih kecil dari EMA panjang.")
-        return
-    if ema_short < 5 or ema_long > 200:
-        print(f"{LOG_PREFIX} ⚠️ EMA values out of range in slash scan: short({ema_short}), long({ema_long})")
-        await interaction.followup.send("⚠️ Periode EMA harus antara 5 dan 200.")
-        return
 
-    # Parse coins
-    coins_list = []
-    for coin_part in coins.split():
-        coins_list.extend([c.strip().upper() for c in coin_part.split(',') if c.strip()])
-    
-    coins_final = [c for c in coins_list if c]
-    
-    if not coins_final:
-        await interaction.followup.send("⚠️ Tidak ada koin yang valid diberikan.")
-        return
-    
-    # Limit to 5 coins per scan to prevent abuse
-    if len(coins_final) > 5:
-        await interaction.followup.send(f"⚠️ Terlalu banyak koin! Maksimal 5 koin per scan. Anda memberikan {len(coins_final)} koin.")
-        return
-
-    print(f"{LOG_PREFIX} 🔍 Processing slash scan for coins: {coins_final} with EMA {ema_short}/{ema_long} on {exchange.upper()}")
-
-    # Define all setups to check
-    setups = [
-        ("1h", "long"),
-        ("1h", "short"),
-        ("4h", "long"),
-        ("4h", "short"),
-    ]
-
-    # Create all scan tasks for parallel execution
-    scan_tasks = []
-    for coin in coins_final:
-        # Check if coin looks like a timeframe or direction - hint to use $ command
-        coin_lower = coin.lower()
-        if coin_lower in [t.lower() for t in ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']] or coin_lower in ('long', 'short', 'detail'):
-            await interaction.followup.send(f"⚠️ '{coin}' terlihat seperti parameter untuk sinyal tunggal. Jika Anda ingin sinyal tunggal, gunakan perintah `$` seperti `$BTC 1d long detail`.")
-            continue
-
-        for timeframe, direction in setups:
-            setup_str = f"${coin} {timeframe}"
-            if direction:
-                setup_str += f" {direction}"
-
-            # Append custom EMA values if not using defaults (13/21)
-            if ema_short != 13 or ema_long != 21:
-                setup_str += f" ema{ema_short} ema{ema_long}"
-
-            scan_tasks.append((coin, timeframe, direction, setup_str))
-
-    print(f"{LOG_PREFIX} 🚀 Starting parallel slash scan for {len(scan_tasks)} setups across {len(coins_final)} coins")
-
-    # Execute all scans in parallel
-    async def run_single_scan(coin, timeframe, direction, setup_str):
-        def run_scan():
-            symbol_norm = normalize_symbol(coin, exchange)
-            if not pair_exists(symbol_norm, exchange):
-                return None
-            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=direction, return_dict=True, ema_short=ema_short, ema_long=ema_long)
-            return result, setup_str
-
-        try:
-            result_tuple = await bot.loop.run_in_executor(None, run_scan)
-            if result_tuple is None:
-                print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
-                return None
-            result, setup_str = result_tuple
-            if isinstance(result, str):
-                print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
-                return None
-            confidence = result.get('confidence', 0)
-            print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
-            return (coin, confidence, setup_str, result)
-        except Exception as e:
-            print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
-            return None
-
-    # Create and run all tasks concurrently
-    tasks = [run_single_scan(coin, tf, dir, setup) for coin, tf, dir, setup in scan_tasks]
-    scan_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Group results by coin
-    coin_results = {}
-    for result in scan_results:
-        if result is None or isinstance(result, Exception):
-            continue
-        coin, confidence, setup_str, data = result
-        if coin not in coin_results:
-            coin_results[coin] = []
-        coin_results[coin].append((confidence, setup_str, data))
-
-    # Process results for each coin
-    for coin in coins_final:
-        if coin not in coin_results or not coin_results[coin]:
-            await interaction.followup.send(f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
-            continue
-
-        results = coin_results[coin]
-
-        # Find the best result (highest confidence)
-        best_result = max(results, key=lambda x: x[0])
-        best_confidence, best_setup, best_data = best_result
-
-        # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
-        # Split: ['$BTC', '1h', 'long'] -> index 1 is timeframe
-        best_timeframe = best_setup.split()[1]
-
-        print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
-
-        # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
-
-        # Create embed with all confidences listed
-        embed, view = create_scan_embed_from_dict(best_data, coin, best_timeframe, results, exchange, ema_short, ema_long, None, interaction.user.id)
-
-        # Send response
-        if chart_buf:
-            file = discord.File(chart_buf, filename=f"scan_chart_{coin}_{best_timeframe}.png")
-            await interaction.followup.send(embed=embed, file=file, view=view)
-        else:
-            await interaction.followup.send(embed=embed, view=view)
-
-        print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
-
-    print(f"{LOG_PREFIX} ✅ Slash scan command completed")
-
-@tree.command(name="coinlist", description="List all available coins for trading signals")
-@discord.app_commands.describe(exchange="Exchange to list coins from (bybit/binance/bitget/gateio, default: bybit)")
-async def slash_coinlist(interaction: discord.Interaction, exchange: str = "bybit"):
-    print(f"{LOG_PREFIX} 📋 Slash coinlist command triggered by {interaction.user}")
-    
-    # Normalize exchange name
-    exchange = exchange.lower()
-    if exchange == 'gate':
-        exchange = 'gateio'
-    if exchange not in ['bybit', 'binance', 'bitget', 'gateio']:
-        await interaction.response.send_message("⚠️ Exchange tidak valid. Gunakan 'bybit', 'binance', 'bitget', atau 'gateio'.", ephemeral=True)
-        return
-    
-    print(f"{LOG_PREFIX} 🏦 Using exchange: {exchange}")
-    await interaction.response.defer()  # Defer for potential delay
-    
-    try:
-        coins = await get_available_coins(exchange=exchange)
-        if not coins:
-            await interaction.followup.send("⚠️ Tidak ada koin yang tersedia saat ini. Coba lagi nanti.")
-            return
-        
-        # Split coins into chunks of 100 for pagination
-        chunk_size = 100
-        chunks = [coins[i:i + chunk_size] for i in range(0, len(coins), chunk_size)]
-        
-        view = CoinListView(chunks, len(coins))
-        embed = view.get_embed()
-        embed.title = f"📋 Available Coins ({exchange.upper()})"
-        
-        await interaction.followup.send(embed=embed, view=view)
-        print(f"{LOG_PREFIX} ✅ Slash coinlist sent successfully ({len(coins)} coins in {len(chunks)} pages)")
-    
-    except Exception as e:
-        print(f"{LOG_PREFIX} ❌ Slash coinlist command error: {e}")
-        await interaction.followup.send(f"⚠️ Error mengambil daftar koin: {e}")
-
-@tree.command(name="ping", description="Check bot latency and benchmark exchange response times")
-async def slash_ping(interaction: discord.Interaction):
-    print(f"{LOG_PREFIX} 🏓 Slash ping command triggered by {interaction.user}")
-    
-    await interaction.response.defer()
-    
-    # Measure bot latency
-    latency = round(bot.latency * 1000)
-    
-    # Benchmark exchanges in parallel (non-blocking)
-    exchanges = ['bybit', 'binance', 'bitget', 'gateio']
-    benchmark_results = {}
-
-    async def bench_exchange(exch: str, timeout: int = 20):
-        loop = bot.loop
-        start = time.time()
-        try:
-            coro = loop.run_in_executor(None, lambda: generate_trade_plan("BTC", "1h", exch, forced_direction=None, return_dict=True, ema_short=13, ema_long=21))
-            result = await asyncio.wait_for(coro, timeout=timeout)
-            if isinstance(result, str):
-                return exch, "Error"
-            elapsed = round((time.time() - start) * 1000)
-            return exch, elapsed
-        except asyncio.TimeoutError:
-            return exch, "Timeout"
-        except Exception:
-            return exch, "Error"
-
-    tasks = [asyncio.create_task(bench_exchange(ex)) for ex in exchanges]
-    results = await asyncio.gather(*tasks)
-    for exch, value in results:
-        benchmark_results[exch] = value
-    
-    # Create embed
-    embed = discord.Embed(
-        title="🏓 Bot Ping & Exchange Benchmark",
-        description="Measuring bot response time and exchange signal generation speed for $BTC command",
-        color=0x00FF88
-    )
-    embed.add_field(name="🤖 Bot Latency", value=f"`{latency} ms`", inline=False)
-    for exchange, time_taken in benchmark_results.items():
-        if time_taken == "Error":
-            embed.add_field(name=f"🏦 {exchange.upper()}", value="`Error`", inline=True)
-        else:
-            embed.add_field(name=f"🏦 {exchange.upper()}", value=f"`{time_taken} ms`", inline=True)
-    
-    embed.set_footer(text=f"{BOT_FOOTER_NAME}")
-    
-    await interaction.followup.send(embed=embed)
-    print(f"{LOG_PREFIX} ✅ Slash ping command completed")
 
 # ============================
 # Interaction Handlers
