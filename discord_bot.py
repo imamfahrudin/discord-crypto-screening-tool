@@ -511,8 +511,10 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     
-    last_price_fmt = format_price_dynamic(data.get('current_price'))
-    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: `{last_price_fmt}` | Generated: {current_time}")
+    # Convert to Indonesian WIB time (UTC+7)
+    from datetime import timedelta
+    wib_time = (datetime.now(timezone.utc) + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S WIB')
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Time: {wib_time}")
     
     # Set chart as image (will be attached separately)
     embed.set_image(url=f"attachment://chart_{symbol}.png")
@@ -1113,8 +1115,10 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     confidence_list = "\n".join(confidence_items)
     embed.add_field(name=f"📋 All Confidences ({scan_type} Setups)", value=confidence_list, inline=False)
     
-    last_price_fmt = format_price_dynamic(data.get('current_price'))
-    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: `{last_price_fmt}` | Generated: {current_time}")
+    # Convert to Indonesian WIB time (UTC+7)
+    from datetime import timedelta
+    wib_time = (datetime.now(timezone.utc) + timedelta(hours=7)).strftime('%Y-%m-%d %H:%M:%S WIB')
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Time: {wib_time}")
     
     # Set chart as image
     embed.set_image(url=f"attachment://chart_{symbol}.png")
