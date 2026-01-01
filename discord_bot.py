@@ -469,7 +469,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         embed.set_thumbnail(url=coin_image_url)
     
     if direction_val == "NETRAL":
-        embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL"
+        embed.title = f"{BOT_TITLE_PREFIX}"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
@@ -489,7 +489,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
-        embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol}"
+        embed.title = f"{BOT_TITLE_PREFIX}"
         embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe"
         
         embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
@@ -1072,7 +1072,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.set_thumbnail(url=coin_image_url)
     
     if direction_val == "NETRAL":
-        embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL ({scan_type})"
+        embed.title = f"{BOT_TITLE_PREFIX}"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
         embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
@@ -1087,7 +1087,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
-        embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol} ({scan_type})"
+        embed.title = f"{BOT_TITLE_PREFIX}"
         embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from {scan_type.lower()})"
         
         embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
