@@ -503,7 +503,7 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
         
         embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
-        embed.add_field(name="� Entry", value=f"```{entry_fmt}```", inline=True)
+        embed.add_field(name="📈 Entry", value=f"```{entry_fmt}```", inline=True)
         embed.add_field(name="🛑 Stop Loss", value=f"```{sl_fmt}```", inline=True)
         
         embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** ```{tp1_fmt}```\n**TP2 (Final):** ```{tp2_fmt}```", inline=False)
@@ -1098,7 +1098,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
         
         embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
-        embed.add_field(name="� Entry", value=f"```{entry_fmt}```", inline=True)
+        embed.add_field(name="📈 Entry", value=f"```{entry_fmt}```", inline=True)
         embed.add_field(name="🛑 Stop Loss", value=f"```{sl_fmt}```", inline=True)
         
         embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** ```{tp1_fmt}```\n**TP2 (Final):** ```{tp2_fmt}```", inline=False)
