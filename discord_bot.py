@@ -472,13 +472,13 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
-        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
-        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        embed.add_field(name="🕒 Timeframe", value=f"```{timeframe.upper()}```", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"```{current_time}```", inline=True)
         # Add EMA periods field for neutral signals too
         ema_short = data.get('ema_short', 13)
         ema_long = data.get('ema_long', 21)
-        embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
-        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
+        embed.add_field(name="📈 EMA Periods", value=f"```{ema_short}/{ema_long}```", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"```{exchange_upper}```", inline=True)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     else:
@@ -492,27 +492,27 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol}"
         embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe"
         
-        embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
-        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
-        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        embed.add_field(name="📊 Pair", value=f"```{symbol}```", inline=True)
+        embed.add_field(name="🕒 Timeframe", value=f"```{timeframe.upper()}```", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"```{current_time}```", inline=True)
         
         # Add EMA periods field
         ema_short = data.get('ema_short', 13)
         ema_long = data.get('ema_long', 21)
-        embed.add_field(name="📈 EMA Periods", value=f"`{ema_short}/{ema_long}`", inline=True)
-        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
+        embed.add_field(name="📈 EMA Periods", value=f"```{ema_short}/{ema_long}```", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"```{exchange_upper}```", inline=True)
         
-        embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
-        embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)
-        embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
+        embed.add_field(name="📈 Entry", value=f"```{entry_fmt}```", inline=True)
+        embed.add_field(name="🛑 Stop Loss", value=f"```{sl_fmt}```", inline=True)
+        embed.add_field(name="💰 Risk/Reward", value=f"```{rr_fmt}```", inline=True)
         
-        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
-        embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
+        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** ```{tp1_fmt}```\n**TP2 (Final):** ```{tp2_fmt}```", inline=False)
+        embed.add_field(name="💡 Confidence", value=f"```{confidence}```", inline=True)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
     
     last_price_fmt = format_price_dynamic(data.get('current_price'))
-    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: ```{last_price_fmt}``` | Generated: {current_time}")
     
     # Set chart as image (will be attached separately)
     embed.set_image(url=f"attachment://chart_{symbol}.png")
@@ -1073,10 +1073,10 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL ({scan_type})"
         embed.description = "📊 **Analysis:** Market is consolidating or FVG/Momentum criteria not met."
         
-        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
-        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
-        embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
-        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
+        embed.add_field(name="🕒 Timeframe", value=f"```{timeframe.upper()}```", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"```{current_time}```", inline=True)
+        embed.add_field(name="📈 EMA Periods", value=f"```{data.get('ema_short', 13)}/{data.get('ema_long', 21)}```", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"```{exchange_upper}```", inline=True)
     else:
         entry_fmt = format_price_dynamic(data.get('entry'))
         sl_fmt = format_price_dynamic(data.get('stop_loss'))
@@ -1088,19 +1088,19 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         embed.title = f"{BOT_TITLE_PREFIX} {direction_val} {symbol} ({scan_type})"
         embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from {scan_type.lower()})"
         
-        embed.add_field(name="📊 Pair", value=f"`{symbol}`", inline=True)
-        embed.add_field(name="🕒 Timeframe", value=f"`{timeframe.upper()}`", inline=True)
-        embed.add_field(name="🧭 Generated", value=f"`{current_time}`", inline=True)
+        embed.add_field(name="📊 Pair", value=f"```{symbol}```", inline=True)
+        embed.add_field(name="🕒 Timeframe", value=f"```{timeframe.upper()}```", inline=True)
+        embed.add_field(name="🧭 Generated", value=f"```{current_time}```", inline=True)
         
-        embed.add_field(name="📈 EMA Periods", value=f"`{data.get('ema_short', 13)}/{data.get('ema_long', 21)}`", inline=True)
-        embed.add_field(name="🏦 Exchange", value=f"`{exchange_upper}`", inline=True)
+        embed.add_field(name="📈 EMA Periods", value=f"```{data.get('ema_short', 13)}/{data.get('ema_long', 21)}```", inline=True)
+        embed.add_field(name="🏦 Exchange", value=f"```{exchange_upper}```", inline=True)
         
-        embed.add_field(name="📈 Entry", value=f"`{entry_fmt}`", inline=True)
-        embed.add_field(name="🛑 Stop Loss", value=f"`{sl_fmt}`", inline=True)
-        embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
+        embed.add_field(name="📈 Entry", value=f"```{entry_fmt}```", inline=True)
+        embed.add_field(name="🛑 Stop Loss", value=f"```{sl_fmt}```", inline=True)
+        embed.add_field(name="💰 Risk/Reward", value=f"```{rr_fmt}```", inline=True)
         
-        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** `{tp1_fmt}`\n**TP2 (Final):** `{tp2_fmt}`", inline=False)
-        embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
+        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** ```{tp1_fmt}```\n**TP2 (Final):** ```{tp2_fmt}```", inline=False)
+        embed.add_field(name="💡 Confidence", value=f"```{confidence}```", inline=True)
     
     # Add all confidences list
     sorted_results = sorted(all_results, key=lambda x: x[0], reverse=True)
@@ -1114,7 +1114,7 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     embed.add_field(name=f"📋 All Confidences ({scan_type} Setups)", value=confidence_list, inline=False)
     
     last_price_fmt = format_price_dynamic(data.get('current_price'))
-    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: {last_price_fmt} | Generated: {current_time}")
+    embed.set_footer(text=f"{BOT_FOOTER_NAME} • Last Price: ```{last_price_fmt}``` | Generated: {current_time}")
     
     # Set chart as image
     embed.set_image(url=f"attachment://chart_{symbol}.png")
