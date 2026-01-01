@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import time
 import asyncio
 import re
+import requests
 from urllib.parse import quote
 from dotenv import load_dotenv
 from signal_logic import generate_trade_plan
@@ -25,6 +26,31 @@ TOKEN = os.environ.get("DISCORD_TOKEN")
 WS_URL = os.environ.get("BYBIT_WS_URL", "wss://stream.bybit.com/v5/public/linear")
 BOT_TITLE_PREFIX = os.environ.get('BOT_TITLE_PREFIX', '💎 CRYPTO SIGNAL —')
 BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
+
+# ============================
+# Helper Functions
+# ============================
+def get_coin_image_url(symbol: str) -> str:
+    """Get coin image URL from CoinGecko API"""
+    try:
+        # Remove USDT suffix if present for CoinGecko lookup
+        coin_symbol = symbol.replace('USDT', '').lower()
+        
+        # CoinGecko API endpoint for coin search
+        url = f"https://api.coingecko.com/api/v3/search?query={coin_symbol}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        
+        data = response.json()
+        if data.get('coins') and len(data['coins']) > 0:
+            # Get the first matching coin
+            coin = data['coins'][0]
+            return coin.get('large', coin.get('thumb', ''))
+        
+        return ''
+    except Exception as e:
+        print(f"{LOG_PREFIX} ⚠️ Failed to get coin image for {symbol}: {e}")
+        return ''
 
 # ============================
 # Discord Setup
@@ -436,6 +462,11 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
     tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}.P')}&interval={interval}"
     
     embed = discord.Embed(color=color)
+    
+    # Set coin thumbnail
+    coin_image_url = get_coin_image_url(symbol)
+    if coin_image_url:
+        embed.set_thumbnail(url=coin_image_url)
     
     if direction_val == "NETRAL":
         embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL"
@@ -1032,6 +1063,11 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
     tv_url = f"https://www.tradingview.com/chart/?symbol={quote(f'{exchange_upper}:{symbol}.P')}&interval={interval}"
     
     embed = discord.Embed(color=color)
+    
+    # Set coin thumbnail
+    coin_image_url = get_coin_image_url(symbol)
+    if coin_image_url:
+        embed.set_thumbnail(url=coin_image_url)
     
     if direction_val == "NETRAL":
         embed.title = f"{emoji} {symbol} — {timeframe.upper()} NEUTRAL ({scan_type})"
