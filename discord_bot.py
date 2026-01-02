@@ -489,6 +489,20 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
+        # Calculate percentage changes from entry
+        entry = data.get('entry')
+        sl = data.get('stop_loss')
+        tp1 = data.get('tp1')
+        tp2 = data.get('tp2')
+        
+        sl_pct = ((sl - entry) / entry) * 100 if entry and entry != 0 else 0
+        tp1_pct = ((tp1 - entry) / entry) * 100 if entry and entry != 0 else 0
+        tp2_pct = ((tp2 - entry) / entry) * 100 if entry and entry != 0 else 0
+        
+        sl_pct_fmt = f"({sl_pct:+.2f}%)"
+        tp1_pct_fmt = f"({tp1_pct:+.2f}%)"
+        tp2_pct_fmt = f"({tp2_pct:+.2f}%)"
+        
         embed.title = f"{BOT_TITLE_PREFIX}"
         embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe"
         
@@ -504,9 +518,9 @@ def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_
         
         embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
         embed.add_field(name="📈 Entry", value=f"```{entry_fmt}```", inline=True)
-        embed.add_field(name="🛑 Stop Loss", value=f"```{sl_fmt}```", inline=True)
+        embed.add_field(name=f"🛑 Stop Loss {sl_pct_fmt}", value=f"```{sl_fmt}```", inline=True)
         
-        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** ```{tp1_fmt}```\n**TP2 (Final):** ```{tp2_fmt}```", inline=False)
+        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R) {tp1_pct_fmt}:** ```{tp1_fmt}```\n**TP2 (Final) {tp2_pct_fmt}:** ```{tp2_fmt}```", inline=False)
         embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
         if show_detail:
             embed.add_field(name="📋 Detailed Analysis", value=data.get('insight', 'No details available.'), inline=False)
@@ -1087,6 +1101,20 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         rr_fmt = f"{data.get('rr'):.2f}R" if data.get('rr') else "N/A"
         confidence = f"{data.get('confidence')}% {data.get('confidence_level', '')}"
         
+        # Calculate percentage changes from entry
+        entry = data.get('entry')
+        sl = data.get('stop_loss')
+        tp1 = data.get('tp1')
+        tp2 = data.get('tp2')
+        
+        sl_pct = ((sl - entry) / entry) * 100 if entry and entry != 0 else 0
+        tp1_pct = ((tp1 - entry) / entry) * 100 if entry and entry != 0 else 0
+        tp2_pct = ((tp2 - entry) / entry) * 100 if entry and entry != 0 else 0
+        
+        sl_pct_fmt = f"({sl_pct:+.2f}%)"
+        tp1_pct_fmt = f"({tp1_pct:+.2f}%)"
+        tp2_pct_fmt = f"({tp2_pct:+.2f}%)"
+        
         embed.title = f"{BOT_TITLE_PREFIX}"
         embed.description = f"{emoji} **{direction_val} Signal** for {symbol} on {timeframe.upper()} timeframe (Best from {scan_type.lower()})"
         
@@ -1099,9 +1127,9 @@ def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_res
         
         embed.add_field(name="💰 Risk/Reward", value=f"`{rr_fmt}`", inline=True)
         embed.add_field(name="📈 Entry", value=f"```{entry_fmt}```", inline=True)
-        embed.add_field(name="🛑 Stop Loss", value=f"```{sl_fmt}```", inline=True)
+        embed.add_field(name=f"🛑 Stop Loss {sl_pct_fmt}", value=f"```{sl_fmt}```", inline=True)
         
-        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R):** ```{tp1_fmt}```\n**TP2 (Final):** ```{tp2_fmt}```", inline=False)
+        embed.add_field(name="🎯 Take Profits", value=f"**TP1 (1.5R) {tp1_pct_fmt}:** ```{tp1_fmt}```\n**TP2 (Final) {tp2_pct_fmt}:** ```{tp2_fmt}```", inline=False)
         embed.add_field(name="💡 Confidence", value=f"`{confidence}`", inline=True)
     
     # Add all confidences list
