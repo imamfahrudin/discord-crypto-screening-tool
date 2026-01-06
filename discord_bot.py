@@ -20,6 +20,33 @@ LOG_PREFIX = "[discord_bot]"
 load_dotenv()
 
 # ============================
+# Coin Image Cache
+# ============================
+COIN_IMAGE_CACHE_FILE = 'coin_image_cache.json'
+coin_image_cache = {}
+
+def load_coin_image_cache():
+    global coin_image_cache
+    if os.path.exists(COIN_IMAGE_CACHE_FILE):
+        try:
+            with open(COIN_IMAGE_CACHE_FILE, 'r') as f:
+                coin_image_cache = json.load(f)
+            print(f"{LOG_PREFIX} ✅ Loaded {len(coin_image_cache)} coin image URLs from cache")
+        except Exception as e:
+            print(f"{LOG_PREFIX} ⚠️ Failed to load coin image cache: {e}")
+
+def save_coin_image_cache():
+    try:
+        with open(COIN_IMAGE_CACHE_FILE, 'w') as f:
+            json.dump(coin_image_cache, f, indent=2)
+        print(f"{LOG_PREFIX} 💾 Saved {len(coin_image_cache)} coin image URLs to cache")
+    except Exception as e:
+        print(f"{LOG_PREFIX} ⚠️ Failed to save coin image cache: {e}")
+
+# Load cache on startup
+load_coin_image_cache()
+
+# ============================
 # Load config
 # ============================
 TOKEN = os.environ.get("DISCORD_TOKEN")
@@ -31,7 +58,11 @@ BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
 # Helper Functions
 # ============================
 def get_coin_image_url(symbol: str) -> str:
-    """Get coin image URL from CoinGecko API"""
+    """Get coin image URL from CoinGecko API with caching"""
+    # Check cache first
+    if symbol in coin_image_cache:
+        return coin_image_cache[symbol]
+    
     try:
         # Remove USDT suffix if present for CoinGecko lookup
         coin_symbol = symbol.replace('USDT', '').lower()
@@ -45,11 +76,23 @@ def get_coin_image_url(symbol: str) -> str:
         if data.get('coins') and len(data['coins']) > 0:
             # Get the first matching coin
             coin = data['coins'][0]
-            return coin.get('large', coin.get('thumb', ''))
+            image_url = coin.get('large', coin.get('thumb', ''))
+            
+            # Cache the result
+            coin_image_cache[symbol] = image_url
+            save_coin_image_cache()
+            
+            return image_url
         
+        # Cache empty result to avoid repeated queries for non-existent coins
+        coin_image_cache[symbol] = ''
+        save_coin_image_cache()
         return ''
     except Exception as e:
         print(f"{LOG_PREFIX} ⚠️ Failed to get coin image for {symbol}: {e}")
+        # Cache empty result on error to avoid repeated failed queries
+        coin_image_cache[symbol] = ''
+        save_coin_image_cache()
         return ''
 
 # ============================
