@@ -1627,4 +1627,22 @@ if __name__ == "__main__":
         exit(1)
     else:
         print(f"{LOG_PREFIX} 🚀 Starting Discord bot...")
-        bot.run(TOKEN)
+        max_retries = 5
+        retry_delay = 60  # Start with 60 seconds
+        for attempt in range(max_retries):
+            try:
+                bot.run(TOKEN)
+                break  # If successful, exit loop
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    print(f"{LOG_PREFIX} ⚠️ Rate limited (attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    print(f"{LOG_PREFIX} ❌ HTTP Error: {e}")
+                    raise
+            except Exception as e:
+                print(f"{LOG_PREFIX} ❌ Unexpected error: {e}")
+                raise
+        else:
+            print(f"{LOG_PREFIX} ❌ Failed to start bot after {max_retries} attempts due to rate limiting.")
