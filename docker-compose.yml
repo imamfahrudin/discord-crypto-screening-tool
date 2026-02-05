@@ -12,8 +12,8 @@ services:
       - ./gate_pairs_cache.json:/app/gate_pairs_cache.json
       - ./coin_image_cache.json:/app/coin_image_cache.json
     restart: unless-stopped
-    dns:
-      - 127.0.0.1
+    # Use bridge network mode (cloudflared handles DNS internally)
+    network_mode: bridge
 
   # discord-crypto-bot-2:
   #   build: .
