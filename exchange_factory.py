@@ -52,7 +52,10 @@ def fetch_ohlc(symbol: str, timeframe: str, exchange: str = 'bybit', limit: int 
         pandas.DataFrame with OHLC data
     """
     module = get_exchange_module(exchange)
-    return module.fetch_ohlc(symbol, timeframe, limit)
+    if exchange.lower() == 'bybit':
+        return module.fetch_ohlc_cached(symbol, timeframe, limit)
+    else:
+        return module.fetch_ohlc(symbol, timeframe, limit)
 
 def normalize_symbol(symbol: str, exchange: str = 'bybit') -> str:
     """

@@ -20,6 +20,12 @@ LOG_PREFIX = "[discord_bot]"
 load_dotenv()
 
 # ============================
+# Thread Pool Executor for Parallel Processing
+# ============================
+import concurrent.futures
+EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+
+# ============================
 # Coin Image Cache
 # ============================
 COIN_IMAGE_CACHE_FILE = 'coin_image_cache.json'
@@ -430,7 +436,7 @@ async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, 
 
     try:
         print(f"{LOG_PREFIX} ⏳ Running signal generation in thread pool...")
-        result = await bot.loop.run_in_executor(None, run_blocking_calls)
+        result = await bot.loop.run_in_executor(EXECUTOR, run_blocking_calls)
         if isinstance(result, str):
             print(f"{LOG_PREFIX} ❌ Signal generation returned error string: {result}")
             await send_error(ctx_or_message, result)
@@ -826,7 +832,7 @@ async def scan_command(ctx, *, args: str):
             return result, setup_str
 
         try:
-            result_tuple = await bot.loop.run_in_executor(None, run_scan)
+            result_tuple = await bot.loop.run_in_executor(EXECUTOR, run_scan)
             if result_tuple is None:
                 print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
                 return None
@@ -1491,7 +1497,7 @@ async def scan_single_coin(coin, ema_short, ema_long, exchange):
             return result
         
         try:
-            result = await bot.loop.run_in_executor(None, run_scan)
+            result = await bot.loop.run_in_executor(EXECUTOR, run_scan)
             if result is None or isinstance(result, str):
                 continue
             confidence = result.get('confidence', 0)
