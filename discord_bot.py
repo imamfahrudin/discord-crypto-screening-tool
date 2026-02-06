@@ -34,6 +34,11 @@ coin_image_cache = {}
 def load_coin_image_cache():
     global coin_image_cache
     if os.path.exists(COIN_IMAGE_CACHE_FILE):
+        # Handle case where Docker created a directory instead of file
+        if os.path.isdir(COIN_IMAGE_CACHE_FILE):
+            print(f"{LOG_PREFIX} 📂 Coin image cache is a directory, removing it")
+            os.rmdir(COIN_IMAGE_CACHE_FILE)
+            return
         try:
             with open(COIN_IMAGE_CACHE_FILE, 'r') as f:
                 coin_image_cache = json.load(f)

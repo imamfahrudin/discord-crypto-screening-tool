@@ -41,6 +41,11 @@ GATE_BASE_URL = 'https://api.gateio.ws/api/v4'  # Gate.io API v4
 def _load_pairs_from_disk():
     try:
         if os.path.exists(CACHE_FILE):
+            # Handle case where Docker created a directory instead of file
+            if os.path.isdir(CACHE_FILE):
+                print(f"{LOG_PREFIX} 📂 Cache file is a directory, removing it")
+                os.rmdir(CACHE_FILE)
+                return None
             with open(CACHE_FILE, 'r') as f:
                 data = json.load(f)
                 if isinstance(data, dict) and 'pairs' in data and 'timestamp' in data:
