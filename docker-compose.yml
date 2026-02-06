@@ -26,7 +26,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.25.0.0/16
+        - subnet: 192.168.100.0/24
 
   # discord-crypto-bot-2:
   #   build: .
