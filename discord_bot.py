@@ -72,7 +72,7 @@ preload_pairs_cache()
 # Load config
 # ============================
 TOKEN = os.environ.get("DISCORD_TOKEN")
-WS_URL = os.environ.get("BYBIT_WS_URL", "wss://stream.bybit.com/v5/public/linear")
+WS_URL = "wss://stream.bybit.com/v5/public/linear"
 BOT_TITLE_PREFIX = os.environ.get('BOT_TITLE_PREFIX', '💎 CRYPTO SIGNAL —')
 BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
 

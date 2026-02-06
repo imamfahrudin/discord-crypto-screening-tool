@@ -147,7 +147,6 @@ Then edit each `.env` file with your settings:
 
 ```
 DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
-BYBIT_WS_URL=wss://stream.bybit.com/v5/public/linear
 OHLC_LIMIT=500
 BOT_TITLE_PREFIX=💎 CRYPTO SIGNAL —
 BOT_FOOTER_NAME=Crypto Bot
@@ -155,7 +154,6 @@ BOT_FOOTER_NAME=Crypto Bot
 
 **Configuration Options:**
 - **DISCORD_TOKEN** (required): Your Discord bot token - Must be unique for each bot instance
-- **BYBIT_WS_URL** (optional): WebSocket URL for Bybit price feeds. Default: `wss://stream.bybit.com/v5/public/linear`
 - **OHLC_LIMIT** (optional): Number of OHLC candles to fetch for analysis. Default: 500
 - **BOT_TITLE_PREFIX** (optional): Prefix for embed titles. Default: `💎 CRYPTO SIGNAL —`
 - **BOT_FOOTER_NAME** (optional): Name shown in embed footers. Default: `Crypto Bot`
