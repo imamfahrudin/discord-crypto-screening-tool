@@ -1393,7 +1393,7 @@ async def ping_command(ctx):
     
     embed.set_footer(text=f"{BOT_FOOTER_NAME}")
     
-    await ctx.send(embed=embed)
+    await ctx.reply(embed=embed)
     print(f"{LOG_PREFIX} ✅ Ping command completed")
 
 # ============================
