@@ -861,11 +861,13 @@ async def scan_command(ctx, *, args: str):
             coin_results[coin] = []
         coin_results[coin].append((confidence, setup_str, data))
 
-    # Process results for each coin
-    for coin in coins_final:
+    print(f"{LOG_PREFIX} 📊 All scans completed. Processing {len(coins_final)} coins in parallel for chart generation...")
+
+    # Process all coins in parallel - prepare data for each coin
+    async def process_coin_result(coin):
+        """Process a single coin's results and return prepared response data"""
         if coin not in coin_results or not coin_results[coin]:
-            await send_error(ctx, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
-            continue
+            return (coin, None, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
 
         results = coin_results[coin]
 
@@ -874,18 +876,39 @@ async def scan_command(ctx, *, args: str):
         best_confidence, best_setup, best_data = best_result
 
         # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
-        # Split: ['$BTC', '1h', 'long'] -> index 1 is timeframe
         best_timeframe = best_setup.split()[1]
 
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
 
-        # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
+        # Generate chart for best result (in parallel)
+        chart_buf = await bot.loop.run_in_executor(EXECUTOR, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
         embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id, "Scanned")
 
+        return (coin, (embed, view, chart_buf, symbol_norm), None)
+
+    # Run all coin processing in parallel
+    coin_process_tasks = [process_coin_result(coin) for coin in coins_final]
+    processed_results = await asyncio.gather(*coin_process_tasks, return_exceptions=True)
+
+    print(f"{LOG_PREFIX} 📤 All processing complete. Sending results in order...")
+
+    # Send results in the original request order
+    for result in processed_results:
+        if isinstance(result, Exception):
+            print(f"{LOG_PREFIX} ❌ Error processing coin result: {result}")
+            continue
+        
+        coin, response_data, error_msg = result
+        
+        if error_msg:
+            await send_error(ctx, error_msg)
+            continue
+        
+        embed, view, chart_buf, symbol_norm = response_data
+        
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
@@ -893,15 +916,15 @@ async def scan_command(ctx, *, args: str):
         else:
             await send_response(ctx, embed=embed, view=view)
 
-        # Add success reaction
-        message_obj = ctx.message if hasattr(ctx, 'message') else ctx
-        try:
-            await message_obj.remove_reaction('🫡', message_obj.guild.me)
-            await message_obj.add_reaction('✅')
-        except Exception:
-            pass
-
         print(f"{LOG_PREFIX} ✅ Scan result sent for {coin}")
+
+    # Add success reaction after all sent
+    message_obj = ctx.message if hasattr(ctx, 'message') else ctx
+    try:
+        await message_obj.remove_reaction('🫡', message_obj.guild.me)
+        await message_obj.add_reaction('✅')
+    except Exception:
+        pass
 
 @bot.command(name="scalp")
 async def scalp_command(ctx, *, args: str):
@@ -1028,7 +1051,7 @@ async def scalp_command(ctx, *, args: str):
             return result, setup_str
 
         try:
-            result_tuple = await bot.loop.run_in_executor(None, run_scalp)
+            result_tuple = await bot.loop.run_in_executor(EXECUTOR, run_scalp)
             if result_tuple is None:
                 print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
                 return None
@@ -1057,11 +1080,13 @@ async def scalp_command(ctx, *, args: str):
             coin_results[coin] = []
         coin_results[coin].append((confidence, setup_str, data))
 
-    # Process results for each coin
-    for coin in coins_final:
+    print(f"{LOG_PREFIX} 📊 All scalps completed. Processing {len(coins_final)} coins in parallel for chart generation...")
+
+    # Process all coins in parallel - prepare data for each coin
+    async def process_coin_result(coin):
+        """Process a single coin's results and return prepared response data"""
         if coin not in coin_results or not coin_results[coin]:
-            await send_error(ctx, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
-            continue
+            return (coin, None, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
 
         results = coin_results[coin]
 
@@ -1070,18 +1095,39 @@ async def scalp_command(ctx, *, args: str):
         best_confidence, best_setup, best_data = best_result
 
         # Extract timeframe from best setup (format: "$COIN TIMEFRAME DIRECTION")
-        # Split: ['$BTC', '15m', 'long'] -> index 1 is timeframe
         best_timeframe = best_setup.split()[1]
 
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
 
-        # Generate chart for best result
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
+        # Generate chart for best result (in parallel)
+        chart_buf = await bot.loop.run_in_executor(EXECUTOR, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
         embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id, "Scalped")
 
+        return (coin, (embed, view, chart_buf, symbol_norm), None)
+
+    # Run all coin processing in parallel
+    coin_process_tasks = [process_coin_result(coin) for coin in coins_final]
+    processed_results = await asyncio.gather(*coin_process_tasks, return_exceptions=True)
+
+    print(f"{LOG_PREFIX} 📤 All processing complete. Sending results in order...")
+
+    # Send results in the original request order
+    for result in processed_results:
+        if isinstance(result, Exception):
+            print(f"{LOG_PREFIX} ❌ Error processing coin result: {result}")
+            continue
+        
+        coin, response_data, error_msg = result
+        
+        if error_msg:
+            await send_error(ctx, error_msg)
+            continue
+        
+        embed, view, chart_buf, symbol_norm = response_data
+        
         # Send response
         if chart_buf:
             file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
@@ -1089,15 +1135,15 @@ async def scalp_command(ctx, *, args: str):
         else:
             await send_response(ctx, embed=embed, view=view)
 
-        # Add success reaction
-        message_obj = ctx.message if hasattr(ctx, 'message') else ctx
-        try:
-            await message_obj.remove_reaction('🫡', message_obj.guild.me)
-            await message_obj.add_reaction('✅')
-        except Exception:
-            pass
-
         print(f"{LOG_PREFIX} ✅ Scalp result sent for {coin}")
+
+    # Add success reaction after all sent
+    message_obj = ctx.message if hasattr(ctx, 'message') else ctx
+    try:
+        await message_obj.remove_reaction('🫡', message_obj.guild.me)
+        await message_obj.add_reaction('✅')
+    except Exception:
+        pass
 
 def create_scan_embed_from_dict(data: dict, symbol: str, timeframe: str, all_results: list, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None, scan_type: str = "Scanned"):
     # Ensure original EMAs are not None
