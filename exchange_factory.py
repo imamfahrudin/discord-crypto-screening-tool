@@ -40,7 +40,7 @@ def get_exchange_module(exchange: str):
 
 def fetch_ohlc(symbol: str, timeframe: str, exchange: str = 'bybit', limit: int = 500):
     """
-    Fetch OHLC data from specified exchange.
+    Fetch OHLC data from specified exchange with caching.
     
     Args:
         symbol: Trading pair symbol (e.g., 'BTCUSDT')
@@ -52,10 +52,8 @@ def fetch_ohlc(symbol: str, timeframe: str, exchange: str = 'bybit', limit: int 
         pandas.DataFrame with OHLC data
     """
     module = get_exchange_module(exchange)
-    if exchange.lower() == 'bybit':
-        return module.fetch_ohlc_cached(symbol, timeframe, limit)
-    else:
-        return module.fetch_ohlc(symbol, timeframe, limit)
+    # All exchanges now support caching via fetch_ohlc_cached
+    return module.fetch_ohlc_cached(symbol, timeframe, limit)
 
 def normalize_symbol(symbol: str, exchange: str = 'bybit') -> str:
     """

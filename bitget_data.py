@@ -144,6 +144,26 @@ def pair_exists(symbol: str) -> bool:
                 print(f"{LOG_PREFIX} ❌ All refresh attempts failed for {symbol}")
                 return False
 
+# OHLC Data Cache
+_OHLC_CACHE = {}  # Key: (symbol, timeframe), Value: (df, timestamp)
+OHLC_CACHE_TTL = 300  # 5 minutes
+
+def fetch_ohlc_cached(symbol: str, timeframe: str, limit: int = 500):
+    """
+    Fetch OHLC data with caching to avoid redundant API calls.
+    """
+    key = (symbol, timeframe)
+    now = time.time()
+    if key in _OHLC_CACHE:
+        df, cached_time = _OHLC_CACHE[key]
+        if now - cached_time < OHLC_CACHE_TTL and len(df) >= limit:
+            print(f"{LOG_PREFIX} 💾 Using cached OHLC for {symbol} {timeframe}")
+            return df
+    
+    df = fetch_ohlc(symbol, timeframe, limit)
+    _OHLC_CACHE[key] = (df, now)
+    return df
+
 def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
     """Fetch OHLC data from Bitget Futures"""
     symbol = normalize_symbol(symbol)
