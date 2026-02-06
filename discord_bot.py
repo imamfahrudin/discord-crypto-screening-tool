@@ -49,8 +49,19 @@ def save_coin_image_cache():
     except Exception as e:
         print(f"{LOG_PREFIX} ⚠️ Failed to save coin image cache: {e}")
 
+def preload_pairs_cache():
+    """Preload trading pairs cache for all exchanges into memory on app start"""
+    exchanges = ['bybit', 'binance', 'bitget', 'gateio']
+    for exchange in exchanges:
+        try:
+            pairs = get_all_pairs(exchange)
+            print(f"{LOG_PREFIX} ✅ Preloaded {len(pairs)} pairs for {exchange}")
+        except Exception as e:
+            print(f"{LOG_PREFIX} ⚠️ Failed to preload pairs for {exchange}: {e}")
+
 # Load cache on startup
 load_coin_image_cache()
+preload_pairs_cache()
 
 # ============================
 # Load config
