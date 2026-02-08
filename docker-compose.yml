@@ -6,12 +6,10 @@ services:
     volumes:
       - ./cache:/app/cache
     restart: unless-stopped
-    dns:
-      - 127.0.0.1
     networks:
       - custom_bridge
     healthcheck:
-      test: ["CMD", "nslookup", "google.com", "127.0.0.1"]
+      test: ["CMD", "nslookup", "google.com"]
       interval: 30s
       timeout: 10s
       retries: 3

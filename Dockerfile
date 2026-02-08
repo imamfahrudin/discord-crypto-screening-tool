@@ -15,4 +15,4 @@ RUN apt-get update && apt-get install -y curl dnsutils && \
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
-CMD ["sh", "-c", "if [ \"$USE_WARP\" = \"true\" ]; then echo 'Starting with Cloudflare DNS proxy...' && cloudflared proxy-dns --upstream https://1.1.1.1/dns-query --port 53 & sleep 2; else echo 'WARP disabled, starting without DNS proxy...'; fi && python -u discord_bot.py"]
+CMD ["sh", "-c", "if [ \"$USE_WARP\" = \"true\" ]; then echo 'Starting with Cloudflare DNS proxy...' && cloudflared proxy-dns --upstream https://1.1.1.1/dns-query --port 53 --address 0.0.0.0 & sleep 2 && echo 'nameserver 127.0.0.1' > /etc/resolv.conf; else echo 'DNS proxy disabled, using default DNS...'; fi && python -u discord_bot.py"]
