@@ -15,4 +15,4 @@ RUN apt-get update && apt-get install -y curl lsb-release gnupg && \
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
-CMD ["sh", "-c", "warp-svc & sleep 2 && until warp-cli registration new 2>/dev/null; do echo 'Waiting for WARP daemon...'; sleep 2; done && warp-cli connect && python -u discord_bot.py"]
+CMD ["sh", "-c", "warp-svc >/dev/null 2>&1 & sleep 5 && until warp-cli registration new 2>/dev/null; do echo 'Waiting for WARP daemon...'; sleep 3; done && warp-cli connect && sleep 2 && python -u discord_bot.py"]
