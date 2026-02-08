@@ -24,18 +24,21 @@ if [ "$USE_WARP" = "true" ]; then\n\
     done\n\
     echo "Daemon ready, registering..."\n\
     echo "y" | script -q -c "warp-cli registration new" /dev/null\n\
+    echo "Setting WARP mode to warp+doh..."\n\
     warp-cli mode warp+doh\n\
+    echo "Attempting to connect WARP..."\n\
     warp-cli connect\n\
     echo "Waiting for WARP connection..."\n\
     sleep 5\n\
     for i in {1..10}; do\n\
         echo "Connection attempt $i:"\n\
         warp-cli status\n\
-        if warp-cli status | grep -q "Status.*Connected\|Connected"; then\n\
+        if warp-cli status | grep -q "Status update: Connected"; then\n\
             echo "✅ WARP Connected Successfully!"\n\
             break\n\
         else\n\
-            echo "Attempt $i failed, waiting..."\n\
+            echo "Attempt $i failed, retrying connection..."\n\
+            warp-cli connect >/dev/null 2>&1\n\
             sleep 3\n\
         fi\n\
     done\n\
