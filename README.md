@@ -12,10 +12,11 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 - **Discord Integration**: Posts trading signals directly to Discord channels
 - **Multi-Exchange Support**: Support for Bybit, Binance, Bitget, and Gate.io Futures
 - **WebSocket Price Feeds**: Real-time price data from Bybit exchange
-- **Modern Slash Commands**: Interactive commands with dropdown menus for easy use
+- **Modern Slash Commands**: Interactive commands with dropdown helpers for easy use (Help command available)
 - **Chart Generation**: Visual position setup with entry/SL/TP levels, FVG zones, EMAs, and volume bars
 - **Quick Commands**: Support for $ prefix for faster signal checks
 - **Multi-Coin Scanning**: Analyze multiple coins simultaneously with best setup selection
+- **Scalp Command**: Specialized scanning for short timeframes (15m/30m) for scalping opportunities
 - **Flexible Parameter Ordering**: Commands support any order for timeframe, direction, and custom EMAs
 - **Custom EMA Support**: Configure short and long EMA periods for personalized analysis
 - **Detailed Analysis**: Optional detailed technical analysis with comprehensive reasoning
@@ -31,6 +32,9 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
 - **Comprehensive Testing**: Included bot testing guide for all commands and scenarios
 - **Error Handling**: Robust error handling and logging for reliable operation
 - **Rate Limiting**: Built-in delays to respect API limits
+- **Coin Image Thumbnails**: Automatic coin logo fetching and caching for enhanced embeds
+- **EMA Switch Buttons**: Interactive buttons to switch between EMA periods (13/21 ↔ 25/50)
+- **Ping Benchmark**: Test bot latency and exchange response times
 
 ## 📋 Prerequisites
 
@@ -66,6 +70,19 @@ An intelligent Discord bot that provides real-time cryptocurrency trading signal
    docker-compose logs -f
    ```
 
+#### Docker Features
+- **Cloudflare WARP Integration**: Optional DNS over HTTPS for enhanced privacy and reliability
+- **Health Checks**: Automatic container health monitoring with DNS connectivity tests
+- **Persistent Caching**: Automatic cache persistence for trading pairs and coin images
+- **Network Configuration**: Custom bridge network with IPv6 support
+- **Privileged Mode**: Required for WARP VPN functionality
+
+#### Environment Variables for Docker
+Add these optional variables to your `.env` file:
+```
+USE_WARP=true  # Enable Cloudflare WARP for DNS over HTTPS (default: false)
+```
+
 #### Multiple Bot Instances
 
 The project supports running multiple independent bot instances. Each instance uses its own environment file and runs in a separate container.
@@ -85,10 +102,25 @@ To run multiple instances:
    #   container_name: discord-crypto-screening-tool-2
    #   env_file: .env2
    #   volumes:
-   #     - ./pairs_cache.json:/app/pairs_cache.json
+   #     - ./cache:/app/cache
    #   restart: unless-stopped
-   #   dns:
-   #     - 127.0.0.1
+   #   privileged: true
+   #   cap_add:
+   #     - NET_ADMIN
+   #     - SYS_MODULE
+   #   devices:
+   #     - /dev/net/tun:/dev/net/tun
+   #   sysctls:
+   #     - net.ipv6.conf.all.disable_ipv6=0
+   #     - net.ipv4.conf.all.src_valid_mark=1
+   #   networks:
+   #     - custom_bridge
+   #   healthcheck:
+   #     test: ["CMD", "nslookup", "google.com", "1.1.1.1"]
+   #     interval: 30s
+   #     timeout: 10s
+   #     retries: 3
+   #     start_period: 30s
    ```
 
 3. Start multiple instances:
@@ -150,6 +182,7 @@ DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN_HERE
 OHLC_LIMIT=500
 BOT_TITLE_PREFIX=💎 CRYPTO SIGNAL —
 BOT_FOOTER_NAME=Crypto Bot
+USE_WARP=false
 ```
 
 **Configuration Options:**
@@ -157,6 +190,7 @@ BOT_FOOTER_NAME=Crypto Bot
 - **OHLC_LIMIT** (optional): Number of OHLC candles to fetch for analysis. Default: 500
 - **BOT_TITLE_PREFIX** (optional): Prefix for embed titles. Default: `💎 CRYPTO SIGNAL —`
 - **BOT_FOOTER_NAME** (optional): Name shown in embed footers. Default: `Crypto Bot`
+- **USE_WARP** (optional): Enable Cloudflare WARP for DNS over HTTPS in Docker. Default: `false`
 
 ### Multiple Bot Instances
 
@@ -165,13 +199,13 @@ You can run multiple bot instances simultaneously, each with different tokens se
 - Each bot instance has its own Discord token and can be invited to different servers
 - Bots share the same codebase but run in separate containers
 - Use different container names for easy identification
-- All instances use the same pairs cache file
+- All instances share the same cache directory for trading pairs and coin images
 
 ## 🔧 How It Works
 
 1. **Initialization**: Bot loads configuration and establishes Discord connection
-2. **Command Handling**: Listens for `!signal`, `$signal`, `!scan`, `!coinlist`, and `/signal`, `/scan`, `/coinlist` slash commands in Discord channels
-3. **Data Fetching**: Retrieves real-time price data via WebSocket from Bybit
+2. **Command Handling**: Listens for `!signal`, `$signal`, `!scan`, `!scalp`, `!coinlist`, `!ping`, and `/help` commands in Discord channels
+3. **Data Fetching**: Retrieves real-time price data from supported exchanges (Bybit, Binance, Bitget, Gate.io)
 4. **Signal Calculation**: Applies RSI and EMA analysis to generate trading signals
 5. **Chart Generation**: Creates visual charts with position setup, EMAs, FVG zones, and volume bars
 6. **Response**: Posts formatted signals with embedded charts back to the Discord channel
@@ -183,30 +217,20 @@ You can run multiple bot instances simultaneously, each with different tokens se
 The bot supports the following timeframes: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M.
 
 ### Commands
-The bot supports both traditional prefix commands and modern slash commands:
+The bot supports traditional prefix commands and quick commands. A help slash command is available for guidance:
 
 #### Prefix Commands
-- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [binance|bitget] [detail]` - General signal check with flexible parameters
-- `!scan {coin1 coin2 ...} [ema_short] [ema_long] [binance|bitget]` - Scan multiple coins (max 5) and select best setup per coin
-- `!coinlist [binance|bitget]` - Display paginated list of available trading coins
+- `!signal {coin} [timeframe] [long/short] [ema_short] [ema_long] [binance|bitget|gateio] [detail]` - General signal check with flexible parameters
+- `!scan {coin1 coin2 ...} [ema_short] [ema_long] [binance|bitget|gateio]` - Scan multiple coins (max 5) and select best setup per coin
+- `!scalp {coin1 coin2 ...} [ema_short] [ema_long] [binance|bitget|gateio]` - Scalp multiple coins (max 5) on short timeframes (15m/30m)
+- `!coinlist [binance|bitget|gateio]` - Display paginated list of available trading coins
+- `!ping` - Check bot latency and benchmark exchange response times
 
 #### Quick Commands ($ Prefix)
-- `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [binance|bitget] [detail]` - Quick signal check with flexible parameters
+- `$SYMBOL [TIMEFRAME] [long/short] [ema_short] [ema_long] [binance|bitget|gateio] [detail]` - Quick signal check with flexible parameters
 
-#### Slash Commands (Recommended)
-The bot now supports Discord's modern slash commands with dropdown helpers:
-```
-/signal          → Generate trading signal (with dropdowns for timeframe, direction, & custom EMAs)
-/scan           → Scan multiple coins for best trading setups
-/coinlist       → List all available trading coins with pagination
-/help           → Show available commands and usage information (in Indonesian)
-```
-
-**Benefits of slash commands:**
-- **Dropdown menus** for timeframe and direction selection
-- **Better mobile experience** with touch-friendly interfaces
-- **Parameter validation** prevents common mistakes
-- **Autocomplete** for trading pair symbols
+#### Slash Commands
+- `/help` - Show available commands and usage information (in Indonesian)
 
 **Examples:**
 - `!signal BTC` - Check for signals on BTC/USDT 1h (default timeframe, Bybit)
@@ -221,21 +245,21 @@ The bot now supports Discord's modern slash commands with dropdown helpers:
 - `!scan BTC,ETH ema20 ema50 binance` - Scan with custom EMA periods using Binance
 - `!scan BTC ETH bitget` - Scan BTC and ETH using Bitget Futures
 - `!scan BTC ETH gateio` - Scan BTC and ETH using Gate.io Futures
+- `!scalp BTC ETH SOL` - Scalp BTC, ETH, SOL on short timeframes (15m/30m)
+- `!scalp BTC ETH ema20 ema50 gateio` - Scalp with custom EMA using Gate.io
 - `!coinlist` - Show paginated list of all available coins (Bybit)
 - `!coinlist binance` - Show coins from Binance Futures
 - `!coinlist bitget` - Show coins from Bitget Futures
 - `!coinlist gateio` - Show coins from Gate.io Futures
+- `!ping` - Check bot latency and exchange benchmark times
 - `$BTC` - Quick check for BTC signals (1h default, Bybit)
 - `$ETH 4h long ema20 ema50 gateio detail` - Quick command with all parameters using Gate.io
-- `/signal` - Use the interactive slash command with dropdowns
-- `/scan` - Interactive multi-coin scanning
-- `/coinlist` - Paginated coin list
 - `/help` - Show help information in Indonesian
 
 **Supported Parameters:**
 - **COIN**: Cryptocurrency symbol (e.g., BTC, ETH, HYPE). USDT is automatically added.
 - **TIMEFRAME**: Optional, default 1h. Supported: 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 1d, 1w, 1M
-- **EXCHANGE**: Optional, default Bybit. Supported: bybit, binance, bitget
+- **EXCHANGE**: Optional, default Bybit. Supported: bybit, binance, bitget, gateio
 - **DIRECTION**: Auto (default), Long, or Short
 - **EMA_SHORT**: Short EMA period (default: 13, range: 5-200)
 - **EMA_LONG**: Long EMA period (default: 21, range: 5-200)
@@ -263,6 +287,12 @@ The bot generates professional trading charts with comprehensive position setup 
 - **Responsive Layout**: Optimized for Discord embed display
 - **Professional Appearance**: TradingView-style design with clear legends
 
+### Interactive Features
+- **EMA Switch Buttons**: Interactive buttons in signal embeds to switch between EMA periods (13/21 ↔ 25/50)
+- **TradingView Links**: Direct links to view charts on TradingView for detailed analysis
+- **Coin Thumbnails**: Automatic cryptocurrency logo display in embeds
+- **Paginated Coin Lists**: Navigation buttons for browsing available trading pairs
+
 ### Customizing Signal Parameters
 
 The bot supports custom EMA periods directly through commands. You can also modify default parameters in the code:
@@ -277,8 +307,8 @@ def generate_trade_plan(symbol: str, timeframe: str, exchange: str='bybit',
 
 **Command Examples with Custom EMAs:**
 - `!signal BTC 1h long ema20 ema50` - Use EMA 20/50 instead of default 13/21
-- `/signal symbol:BTC timeframe:1h direction:long ema_short:20 ema_long:50` - Slash command with custom EMAs
 - `$BTC 4h ema9 ema21` - Quick command with custom EMAs
+- `!scan BTC ETH ema25 ema50` - Scan with custom EMA periods
 
 **EMA Period Ranges:**
 - Short EMA: 5-200 periods
@@ -343,6 +373,16 @@ Run the testing guide to ensure all features work correctly:
 - **Issue**: Bots not responding or conflicting
 - **Solution**: Ensure each bot instance has a unique Discord token and different container names. Check logs for each service individually: `docker-compose logs -f discord-crypto-bot-2`
 
+### Docker Issues
+- **Issue**: Container fails to start with WARP errors
+- **Solution**: Set `USE_WARP=false` in your `.env` file to disable Cloudflare WARP, or ensure privileged mode is enabled in docker-compose.yml
+- **Issue**: Health check failures
+- **Solution**: Check network connectivity and DNS resolution. The container uses `nslookup` to test connectivity
+- **Issue**: Cache not persisting between restarts
+- **Solution**: Ensure the `./cache` volume is properly mounted and has write permissions
+- **Issue**: High CPU usage
+- **Solution**: The bot performs parallel processing for multiple exchanges. This is normal behavior during signal generation
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
@@ -366,6 +406,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Gate.io](https://www.gate.io/) for Gate.io Futures data
 - [TA Library](https://github.com/bukosabino/ta) for technical analysis
 - [pandas](https://pandas.pydata.org/) for data manipulation
+- [Docker](https://www.docker.com/) for containerization
+- [Cloudflare WARP](https://1.1.1.1/) for DNS over HTTPS functionality
 
 ## 📧 Contact
 
