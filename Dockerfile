@@ -14,5 +14,43 @@ RUN apt-get update && apt-get install -y curl lsb-release gnupg && \
 
 COPY . .
 
+# Create startup script
+RUN echo '#!/bin/bash\n\
+if [ "$USE_WARP" = "true" ]; then\n\
+    warp-svc >/dev/null 2>&1 &\n\
+    echo "Waiting for WARP daemon to start..."\n\
+    while [ ! -S /run/cloudflare-warp/warp_service ]; do\n\
+        sleep 1\n\
+    done\n\
+    echo "Daemon ready, registering..."\n\
+    echo "y" | script -q -c "warp-cli registration new" /dev/null\n\
+    warp-cli mode warp+doh\n\
+    warp-cli connect\n\
+    echo "Waiting for WARP connection..."\n\
+    sleep 5\n\
+    for i in {1..10}; do\n\
+        echo "Connection attempt $i:"\n\
+        warp-cli status\n\
+        if warp-cli status | grep -q "Status.*Connected\|Connected"; then\n\
+            echo "✅ WARP Connected Successfully!"\n\
+            break\n\
+        else\n\
+            echo "Attempt $i failed, waiting..."\n\
+            sleep 3\n\
+        fi\n\
+    done\n\
+    echo "Final WARP status:"\n\
+    warp-cli status\n\
+    echo "Testing connection to Bybit..."\n\
+    if curl -I https://api.bybit.com --connect-timeout 10 >/dev/null 2>&1; then\n\
+        echo "✅ Bybit is reachable!"\n\
+    else\n\
+        echo "⚠️  Warning: Could not reach Bybit - WARP may not be working"\n\
+    fi\n\
+else\n\
+    echo "WARP disabled, starting without VPN..."\n\
+fi\n\
+python -u discord_bot.py' > /app/start.sh && chmod +x /app/start.sh
+
 ENV PYTHONUNBUFFERED=1
-CMD ["sh", "-c", "if [ \"$USE_WARP\" = \"true\" ]; then warp-svc >/dev/null 2>&1 & echo 'Waiting for WARP daemon to start...' && while [ ! -S /run/cloudflare-warp/warp_service ]; do sleep 1; done && echo 'Daemon ready, registering...' && echo 'y' | script -q -c 'warp-cli registration new' /dev/null && warp-cli mode warp+doh && warp-cli connect && echo 'Waiting for WARP connection...' && sleep 5 && for i in 1 2 3 4 5 6 7 8 9 10; do echo \"Connection attempt $i:\" && warp-cli status && if warp-cli status | grep -q 'Status.*Connected\|Connected'; then echo '✅ WARP Connected Successfully!'; break; else echo \"Attempt $i failed, waiting...\"; sleep 3; fi; done && echo 'Final WARP status:' && warp-cli status && echo 'Testing connection to Bybit...' && curl -I https://api.bybit.com --connect-timeout 10 || echo 'Warning: Could not reach Bybit - WARP may not be working'; else echo 'WARP disabled, starting without VPN...'; fi && python -u discord_bot.py"]
+CMD ["/app/start.sh"]
