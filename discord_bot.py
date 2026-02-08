@@ -50,6 +50,12 @@ def load_coin_image_cache():
             print(f"{LOG_PREFIX} ✅ Loaded {len(coin_image_cache)} coin image URLs from cache")
         except Exception as e:
             print(f"{LOG_PREFIX} ⚠️ Failed to load coin image cache: {e}")
+            # Remove corrupted or empty file to prevent future errors
+            try:
+                os.remove(COIN_IMAGE_CACHE_FILE)
+                print(f"{LOG_PREFIX} 🗑️ Removed corrupted cache file")
+            except OSError as remove_e:
+                print(f"{LOG_PREFIX} ⚠️ Failed to remove corrupted cache file: {remove_e}")
 
 def save_coin_image_cache():
     try:
