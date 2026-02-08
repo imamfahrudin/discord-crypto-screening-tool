@@ -5,14 +5,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install warp-cli for DNS over HTTPS
-RUN apt-get update && apt-get install -y curl lsb-release gnupg && \
-    curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor | tee /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg > /dev/null && \
-    echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/cloudflare-client.list && \
-    apt-get update && apt-get install -y cloudflare-warp && \
+# Install cloudflared for DNS over HTTPS
+RUN apt-get update && apt-get install -y curl dnsutils && \
+    curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb -o /tmp/cloudflared.deb && \
+    dpkg -i /tmp/cloudflared.deb && \
+    rm /tmp/cloudflared.deb && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
-CMD ["sh", "-c", "if [ \"$USE_WARP\" = \"true\" ]; then warp-svc >/dev/null 2>&1 & echo 'Waiting for WARP daemon to start...' && while [ ! -S /run/cloudflare-warp/warp_service ]; do sleep 1; done && echo 'Daemon ready, registering...' && echo 'y' | script -q -c 'warp-cli registration new' /dev/null && warp-cli mode warp+doh && warp-cli connect && sleep 2; else echo 'WARP disabled, starting without VPN...'; fi && python -u discord_bot.py"]
+CMD ["sh", "-c", "if [ \"$USE_WARP\" = \"true\" ]; then echo 'Starting with Cloudflare DNS proxy...' && cloudflared proxy-dns --upstream https://1.1.1.1/dns-query --port 53 & sleep 2; else echo 'WARP disabled, starting without DNS proxy...'; fi && python -u discord_bot.py"]
