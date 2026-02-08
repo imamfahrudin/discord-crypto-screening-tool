@@ -14,6 +14,8 @@ from signal_logic import generate_trade_plan
 from exchange_factory import normalize_symbol, pair_exists, get_all_pairs
 from utils import calculate_rr, format_price_dynamic
 from chart_generator import generate_chart_with_setup, generate_neutral_chart
+import aiohttp
+import concurrent.futures
 
 LOG_PREFIX = "[discord_bot]"
 
@@ -22,7 +24,6 @@ load_dotenv()
 # ============================
 # Thread Pool Executor for Parallel Processing
 # ============================
-import concurrent.futures
 EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 
 # ============================
@@ -344,16 +345,49 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str, exchange: 
 
 # Helper functions for sending responses (works for both commands and direct messages)
 async def send_response(ctx_or_message, **kwargs):
-    if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
-        await ctx_or_message.reply(**kwargs)
-    else:  # It's a discord.Message
-        await ctx_or_message.reply(**kwargs)
+    """Send response with automatic retry on connection errors"""
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
+                await ctx_or_message.reply(**kwargs)
+            else:  # It's a discord.Message
+                await ctx_or_message.reply(**kwargs)
+            return  # Success
+        except (aiohttp.ClientOSError, ConnectionError, BrokenPipeError) as e:
+            print(f"{LOG_PREFIX} ⚠️ Connection error on attempt {attempt + 1}/{max_retries}: {e}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(2)  # Wait before retry
+                continue
+            else:
+                # Final attempt: try without file attachment if present
+                if 'file' in kwargs:
+                    print(f"{LOG_PREFIX} 🔄 Retrying without file attachment")
+                    kwargs_no_file = {k: v for k, v in kwargs.items() if k != 'file'}
+                    try:
+                        if hasattr(ctx_or_message, 'send'):
+                            await ctx_or_message.reply(**kwargs_no_file)
+                        else:
+                            await ctx_or_message.reply(**kwargs_no_file)
+                        print(f"{LOG_PREFIX} ✅ Sent response without chart image")
+                        return
+                    except Exception as retry_error:
+                        print(f"{LOG_PREFIX} ❌ Final retry failed: {retry_error}")
+                        raise
+                else:
+                    raise
+        except Exception as e:
+            print(f"{LOG_PREFIX} ❌ Unexpected error sending response: {e}")
+            raise
 
 async def send_error(ctx_or_message, message: str):
-    if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
-        await ctx_or_message.reply(message)
-    else:  # It's a discord.Message
-        await ctx_or_message.reply(message)
+    try:
+        if hasattr(ctx_or_message, 'send'):  # It's a commands.Context
+            await ctx_or_message.reply(message)
+        else:  # It's a discord.Message
+            await ctx_or_message.reply(message)
+    except Exception as e:
+        print(f"{LOG_PREFIX} ⚠️ Failed to send error message: {e}")
 
     # Add sad face reaction for errors
     message_obj = ctx_or_message.message if hasattr(ctx_or_message, 'message') else ctx_or_message
