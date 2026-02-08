@@ -29,7 +29,7 @@ EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
 # ============================
 # Coin Image Cache
 # ============================
-COIN_IMAGE_CACHE_FILE = 'coin_image_cache.json'
+COIN_IMAGE_CACHE_FILE = os.path.join('cache', 'coin_image_cache.json')
 coin_image_cache = {}
 
 def load_coin_image_cache():

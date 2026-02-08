@@ -33,7 +33,7 @@ def _create_session():
 _SESSION = _create_session()
 
 _PAIRS_CACHE = None
-CACHE_FILE = os.path.join(os.path.dirname(__file__), 'gate_pairs_cache.json')
+CACHE_FILE = os.path.join(os.path.dirname(__file__), 'cache', 'gate_pairs_cache.json')
 CACHE_EXPIRY = 3600  # 1 hour in seconds
 
 GATE_BASE_URL = 'https://api.gateio.ws/api/v4'  # Gate.io API v4

@@ -33,7 +33,7 @@ def _create_session():
 _SESSION = _create_session()
 
 _PAIRS_CACHE = None
-CACHE_FILE = os.path.join(os.path.dirname(__file__), 'bitget_pairs_cache.json')
+CACHE_FILE = os.path.join(os.path.dirname(__file__), 'cache', 'bitget_pairs_cache.json')
 CACHE_EXPIRY = 3600  # 1 hour in seconds
 
 BITGET_BASE_URL = 'https://api.bitget.com'  # Bitget API
