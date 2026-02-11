@@ -1490,7 +1490,7 @@ async def slash_help(interaction: discord.Interaction):
 
     embed.add_field(
         name="⏰ **Timeframe yang Didukung**",
-        value="`1m` `3m` `5m` `15m` `30m` `1h` `4h` `1d`",
+        value="`1m` `3m` `5m` `15m` `30m` `1h` `2h` `4h` `6h` `1d`",
         inline=True
     )
 
@@ -1499,7 +1499,9 @@ async def slash_help(interaction: discord.Interaction):
         value=(
             "• `!signal BTC` → Sinyal BTC/USDT 1h (default)\n"
             "• `!signal BTC 1h` → Sinyal BTC/USDT 1 jam\n"
-            "• `!signal ETH 4h long` → Long ETH/USDT 4 jam\n"
+            "• `!signal ETH 2h long` → Long ETH/USDT 2 jam\n"
+            "• `!signal SOL 4h long` → Long SOL/USDT 4 jam\n"
+            "• `!signal BTC 6h short` → Short BTC/USDT 6 jam\n"
             "• `!signal SOL 1d short` → Short SOL/USDT harian\n"
             "• `!signal BTC 1h short ema20 ema50` → Short dengan EMA20/50\n"
             "• `!signal ETH long ema9 ema21 4h` → Urutan bebas setelah coin\n"
@@ -1522,8 +1524,9 @@ async def slash_help(interaction: discord.Interaction):
             "• `!scan BTC ETH bitget` → Scan dengan data Bitget\n"
             "• `!scan BTC ETH gateio` → Scan dengan data Gate.io\n"
             "• `$BTC` → Cepat BTC 1h (default)\n"
-            "• `$BTC 1h` → Cepat BTC 1 jam\n"
+            "• `$BTC 2h` → Cepat BTC 2 jam\n"
             "• `$ETH 4h long` → Cepat long ETH 4 jam\n"
+            "• `$SOL 6h short` → Cepat short SOL 6 jam\n"
             "• `$SOL short ema20 ema50 1d` → Urutan bebas setelah coin\n"
             "• `$BTC gateio` → Cepat dengan data Gate.io"
         ),
