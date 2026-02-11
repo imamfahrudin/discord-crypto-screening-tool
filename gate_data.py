@@ -190,7 +190,8 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         '6h': '6h',
         '12h': '12h',
         '1d': '1d',
-        '1w': '1w'
+        '1w': '1w',
+        '1M': '1M'
     }
     
     interval = tf_map.get(timeframe.lower())

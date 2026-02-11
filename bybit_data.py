@@ -207,8 +207,12 @@ def fetch_ohlc(symbol: str, timeframe: str, limit: int = 500):
         '15m': '15',
         '30m': '30',
         '1h': '60',
+        '2h': '120',
         '4h': '240',
-        '1d': 'D'
+        '6h': '360',
+        '1d': 'D',
+        '1w': 'W',
+        '1M': 'M'
     }
     timeframe = timeframe.lower()
     if timeframe not in tf_map:
