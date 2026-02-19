@@ -20,7 +20,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256m
+          memory: 512m
     healthcheck:
       test: ["CMD", "nslookup", "google.com", "1.1.1.1"]
       interval: 30s
