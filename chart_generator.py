@@ -87,11 +87,11 @@ def generate_chart_with_setup(df: pd.DataFrame,
     add_plots = []
     
     if ema13 is not None:
-        ema13_plot = ema13.tail(100)
+        ema13_plot = ema13.tail(50)
         add_plots.append(mpf.make_addplot(ema13_plot, color='#00BFFF', width=2, label=f'EMA {ema_short}'))
     
     if ema21 is not None:
-        ema21_plot = ema21.tail(100)
+        ema21_plot = ema21.tail(50)
         add_plots.append(mpf.make_addplot(ema21_plot, color='#FF6B9D', width=2, label=f'EMA {ema_long}'))
     
     # Custom style with modern light theme
