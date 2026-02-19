@@ -24,60 +24,33 @@ load_dotenv()
 # ============================
 # Thread Pool Executor for Parallel Processing
 # ============================
-EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=20)
+EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
 # ============================
-# Coin Image Cache
+# Semaphore for limiting concurrent memory-intensive operations
 # ============================
-COIN_IMAGE_CACHE_FILE = os.path.join('cache', 'coin_image_cache.json')
-coin_image_cache = {}
+SIGNAL_SEMAPHORE = asyncio.Semaphore(2)  # Allow only 2 concurrent signal generations
+
+# ============================
+# Coin Image Cache (Disabled for memory efficiency)
+# ============================
+# coin_image_cache = {}  # Disabled to save memory
 
 def load_coin_image_cache():
-    global coin_image_cache
-    if os.path.exists(COIN_IMAGE_CACHE_FILE):
-        # Handle case where Docker created a directory instead of file
-        if os.path.isdir(COIN_IMAGE_CACHE_FILE):
-            print(f"{LOG_PREFIX} 📂 Coin image cache is a directory, removing it")
-            try:
-                import shutil
-                shutil.rmtree(COIN_IMAGE_CACHE_FILE)
-            except OSError as e:
-                print(f"{LOG_PREFIX} ⚠️ Failed to remove directory {COIN_IMAGE_CACHE_FILE}: {e}")
-                return
-        try:
-            with open(COIN_IMAGE_CACHE_FILE, 'r') as f:
-                coin_image_cache = json.load(f)
-            print(f"{LOG_PREFIX} ✅ Loaded {len(coin_image_cache)} coin image URLs from cache")
-        except Exception as e:
-            print(f"{LOG_PREFIX} ⚠️ Failed to load coin image cache: {e}")
-            # Remove corrupted or empty file to prevent future errors
-            try:
-                os.remove(COIN_IMAGE_CACHE_FILE)
-                print(f"{LOG_PREFIX} 🗑️ Removed corrupted cache file")
-            except OSError as remove_e:
-                print(f"{LOG_PREFIX} ⚠️ Failed to remove corrupted cache file: {remove_e}")
+    """Cache loading disabled for memory efficiency"""
+    pass
 
 def save_coin_image_cache():
-    try:
-        with open(COIN_IMAGE_CACHE_FILE, 'w') as f:
-            json.dump(coin_image_cache, f, indent=2)
-        print(f"{LOG_PREFIX} 💾 Saved {len(coin_image_cache)} coin image URLs to cache")
-    except Exception as e:
-        print(f"{LOG_PREFIX} ⚠️ Failed to save coin image cache: {e}")
+    """Cache saving disabled for memory efficiency"""
+    pass
 
 def preload_pairs_cache():
-    """Preload trading pairs cache for all exchanges into memory on app start"""
-    exchanges = ['bybit', 'binance', 'bitget', 'gateio']
-    for exchange in exchanges:
-        try:
-            pairs = get_all_pairs(exchange)
-            print(f"{LOG_PREFIX} ✅ Preloaded {len(pairs)} pairs for {exchange}")
-        except Exception as e:
-            print(f"{LOG_PREFIX} ⚠️ Failed to preload pairs for {exchange}: {e}")
+    """Preloading disabled for memory efficiency"""
+    pass
 
-# Load cache on startup
-load_coin_image_cache()
-preload_pairs_cache()
+# Load cache on startup (disabled)
+# load_coin_image_cache()
+# preload_pairs_cache()
 
 # ============================
 # Load config
@@ -91,11 +64,7 @@ BOT_FOOTER_NAME = os.environ.get('BOT_FOOTER_NAME', 'Crypto Bot')
 # Helper Functions
 # ============================
 def get_coin_image_url(symbol: str) -> str:
-    """Get coin image URL from CoinGecko API with caching"""
-    # Check cache first
-    if symbol in coin_image_cache:
-        return coin_image_cache[symbol]
-    
+    """Get coin image URL from CoinGecko API without caching for memory efficiency"""
     try:
         # Remove USDT suffix if present for CoinGecko lookup
         coin_symbol = symbol.replace('USDT', '').lower()
@@ -110,22 +79,11 @@ def get_coin_image_url(symbol: str) -> str:
             # Get the first matching coin
             coin = data['coins'][0]
             image_url = coin.get('large', coin.get('thumb', ''))
-            
-            # Cache the result
-            coin_image_cache[symbol] = image_url
-            save_coin_image_cache()
-            
             return image_url
         
-        # Cache empty result to avoid repeated queries for non-existent coins
-        coin_image_cache[symbol] = ''
-        save_coin_image_cache()
         return ''
     except Exception as e:
         print(f"{LOG_PREFIX} ⚠️ Failed to get coin image for {symbol}: {e}")
-        # Cache empty result on error to avoid repeated failed queries
-        coin_image_cache[symbol] = ''
-        save_coin_image_cache()
         return ''
 
 # ============================
@@ -301,6 +259,16 @@ def safe_float(v):
     except Exception:
         return None
 
+import gc
+
+# ============================
+# Memory management utilities
+# ============================
+def cleanup_memory():
+    """Force garbage collection to free memory"""
+    gc.collect()
+
+# Call cleanup after chart generation
 def generate_chart_from_data(data: dict, symbol: str, timeframe: str, exchange: str = 'bybit'):
     """Generate chart from trade plan data dict"""
     try:
@@ -347,10 +315,14 @@ def generate_chart_from_data(data: dict, symbol: str, timeframe: str, exchange: 
             print(f"{LOG_PREFIX} ✅ Chart generated successfully ({len(chart_buf.getvalue())} bytes)")
         else:
             print(f"{LOG_PREFIX} ⚠️ Chart generation returned None")
+        
+        # Cleanup memory after chart generation
+        cleanup_memory()
         return chart_buf
     except Exception as e:
         print(f"{LOG_PREFIX} ❌ Chart generation error: {e}")
         traceback.print_exc()
+        cleanup_memory()
         return None
 
 # Helper functions for sending responses (works for both commands and direct messages)
@@ -468,78 +440,80 @@ class CoinListView(discord.ui.View):
 async def generate_signal_response(ctx_or_message, symbol: str, timeframe: str, direction: str = None, exchange: str = "bybit", ema_short: int = None, ema_long: int = None, show_detail: bool = False):
     print(f"{LOG_PREFIX} 🚀 Starting signal generation for {symbol} {timeframe} direction={direction} ema_short={ema_short} ema_long={ema_long}")
     
-    valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
-    if timeframe.lower() not in [t.lower() for t in valid_tfs]:
-        print(f"{LOG_PREFIX} ⚠️ Invalid timeframe: {timeframe}")
-        await send_error(ctx_or_message, f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
-        return
-
-    forced = None
-    if direction:
-        dir_norm = direction.strip().lower()
-        if dir_norm not in ('long','short'):
-            print(f"{LOG_PREFIX} ⚠️ Invalid direction: {direction}")
-            await send_error(ctx_or_message, "⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
-            return
-        forced = dir_norm
-
-    def run_blocking_calls():
-        print(f"{LOG_PREFIX} 🔄 Executing blocking signal generation logic")
-        symbol_norm = normalize_symbol(symbol)
-        if not pair_exists(symbol_norm, exchange):
-            print(f"{LOG_PREFIX} ❌ Pair not available: {symbol_norm}")
-            return f"❌ Pasangan `{symbol_norm}` tidak tersedia di {exchange.upper()}."
-        # Get dict data for chart generation
-        result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)
-        print(f"{LOG_PREFIX} ✅ Signal generation completed for {symbol_norm}")
-        return result
-
-    try:
-        print(f"{LOG_PREFIX} ⏳ Running signal generation in thread pool...")
-        result = await bot.loop.run_in_executor(EXECUTOR, run_blocking_calls)
-        if isinstance(result, str):
-            print(f"{LOG_PREFIX} ❌ Signal generation returned error string: {result}")
-            await send_error(ctx_or_message, result)
+    # Acquire semaphore to limit concurrent operations
+    async with SIGNAL_SEMAPHORE:
+        valid_tfs = ['1m','3m','5m','15m','30m','1h','2h','4h','6h','1d','1w','1M']
+        if timeframe.lower() not in [t.lower() for t in valid_tfs]:
+            print(f"{LOG_PREFIX} ⚠️ Invalid timeframe: {timeframe}")
+            await send_error(ctx_or_message, f"⚠️ Invalid timeframe `{timeframe}`. Pilih dari {valid_tfs}.")
             return
 
-        symbol_norm = normalize_symbol(symbol, exchange)
-        print(f"{LOG_PREFIX} 📊 Generating chart for {symbol_norm}...")
-        
-        # Generate chart
-        chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe, exchange)
-        
-        # Create embed
-        print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
-        user_id = ctx_or_message.author.id if hasattr(ctx_or_message, 'author') else (ctx_or_message.user.id if hasattr(ctx_or_message, 'user') else None)
-        embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, ema_short, ema_long, direction, user_id)
-        
-        # Send with chart attachment
-        if chart_buf:
-            print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
-            file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
-            await send_response(ctx_or_message, embed=embed, file=file, view=view)
-            print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
-        else:
-            print(f"{LOG_PREFIX} 📤 Sending response without chart")
-            await send_response(ctx_or_message, embed=embed, view=view)
-            print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
-            
-        # Add success reaction
-        message_obj = ctx_or_message.message if hasattr(ctx_or_message, 'message') else ctx_or_message
+        forced = None
+        if direction:
+            dir_norm = direction.strip().lower()
+            if dir_norm not in ('long','short'):
+                print(f"{LOG_PREFIX} ⚠️ Invalid direction: {direction}")
+                await send_error(ctx_or_message, "⚠️ Jika menambahkan direction, gunakan `long` atau `short`.")
+                return
+            forced = dir_norm
+
+        def run_blocking_calls():
+            print(f"{LOG_PREFIX} 🔄 Executing blocking signal generation logic")
+            symbol_norm = normalize_symbol(symbol)
+            if not pair_exists(symbol_norm, exchange):
+                print(f"{LOG_PREFIX} ❌ Pair not available: {symbol_norm}")
+                return f"❌ Pasangan `{symbol_norm}` tidak tersedia di {exchange.upper()}."
+            # Get dict data for chart generation
+            result = generate_trade_plan(symbol_norm, timeframe, exchange, forced_direction=forced, return_dict=True, ema_short=ema_short or 13, ema_long=ema_long or 21)
+            print(f"{LOG_PREFIX} ✅ Signal generation completed for {symbol_norm}")
+            return result
+
         try:
-            await message_obj.remove_reaction('🫡', message_obj.guild.me)
-            await message_obj.add_reaction('✅')
-        except Exception:
-            pass
-    except ValueError as e:
-        print(f"{LOG_PREFIX} ⚠️ ValueError in signal generation: {e}")
-        await send_error(ctx_or_message, f"⚠️ Kesalahan dalam input/data: `{e}`")
-    except Exception as e:
-        tb = traceback.format_exc()
-        print(f"{LOG_PREFIX} ❌ Unexpected error in signal generation: {e}")
-        print(f"{LOG_PREFIX} 📄 Full traceback:\n{tb}")
-        await send_error(ctx_or_message, f"⚠️ Error menghasilkan sinyal. Cek log terminal: `{e}`")
-        print(tb)
+            print(f"{LOG_PREFIX} ⏳ Running signal generation in thread pool...")
+            result = await bot.loop.run_in_executor(EXECUTOR, run_blocking_calls)
+            if isinstance(result, str):
+                print(f"{LOG_PREFIX} ❌ Signal generation returned error string: {result}")
+                await send_error(ctx_or_message, result)
+                return
+
+            symbol_norm = normalize_symbol(symbol, exchange)
+            print(f"{LOG_PREFIX} 📊 Generating chart for {symbol_norm}...")
+            
+            # Generate chart
+            chart_buf = await bot.loop.run_in_executor(None, generate_chart_from_data, result, symbol_norm, timeframe, exchange)
+            
+            # Create embed
+            print(f"{LOG_PREFIX} 📝 Creating embed for signal response")
+            user_id = ctx_or_message.author.id if hasattr(ctx_or_message, 'author') else (ctx_or_message.user.id if hasattr(ctx_or_message, 'user') else None)
+            embed, view = create_signal_embed_from_dict(result, symbol_norm, timeframe, show_detail, exchange, ema_short, ema_long, direction, user_id)
+            
+            # Send with chart attachment
+            if chart_buf:
+                print(f"{LOG_PREFIX} 📤 Sending response with chart ({len(chart_buf.getvalue())} bytes)")
+                file = discord.File(chart_buf, filename=f"chart_{symbol_norm}.png")
+                await send_response(ctx_or_message, embed=embed, file=file, view=view)
+                print(f"{LOG_PREFIX} ✅ Signal response sent successfully")
+            else:
+                print(f"{LOG_PREFIX} 📤 Sending response without chart")
+                await send_response(ctx_or_message, embed=embed, view=view)
+                print(f"{LOG_PREFIX} ✅ Signal response sent successfully (no chart)")
+                
+            # Add success reaction
+            message_obj = ctx_or_message.message if hasattr(ctx_or_message, 'message') else ctx_or_message
+            try:
+                await message_obj.remove_reaction('🫡', message_obj.guild.me)
+                await message_obj.add_reaction('✅')
+            except Exception:
+                pass
+        except ValueError as e:
+            print(f"{LOG_PREFIX} ⚠️ ValueError in signal generation: {e}")
+            await send_error(ctx_or_message, f"⚠️ Kesalahan dalam input/data: `{e}`")
+        except Exception as e:
+            tb = traceback.format_exc()
+            print(f"{LOG_PREFIX} ❌ Unexpected error in signal generation: {e}")
+            print(f"{LOG_PREFIX} 📄 Full traceback:\n{tb}")
+            await send_error(ctx_or_message, f"⚠️ Error menghasilkan sinyal. Cek log terminal: `{e}`")
+            print(tb)
 
 def create_signal_embed_from_dict(data: dict, symbol: str, timeframe: str, show_detail: bool = False, exchange: str = 'bybit', original_ema_short: int = 13, original_ema_long: int = 21, direction: str = None, user_id: int = None):
     """Create embed from dict data (new format)"""
@@ -880,11 +854,12 @@ async def scan_command(ctx, *, args: str):
 
             scan_tasks.append((coin, timeframe, direction, setup_str))
 
-    print(f"{LOG_PREFIX} 🚀 Starting parallel scan for {len(scan_tasks)} setups across {len(coins_final)} coins")
+    print(f"{LOG_PREFIX} 🚀 Starting sequential scan for {len(scan_tasks)} setups across {len(coins_final)} coins")
 
-    # Execute all scans in parallel
-    async def run_single_scan(coin, timeframe, direction, setup_str):
-        def run_scan():
+    # Execute all scans sequentially to save memory
+    scan_results = []
+    for coin, timeframe, direction, setup_str in scan_tasks:
+        def run_single_scan():
             symbol_norm = normalize_symbol(coin, exchange)
             if not pair_exists(symbol_norm, exchange):
                 return None
@@ -892,42 +867,38 @@ async def scan_command(ctx, *, args: str):
             return result, setup_str
 
         try:
-            result_tuple = await bot.loop.run_in_executor(EXECUTOR, run_scan)
+            result_tuple = await bot.loop.run_in_executor(EXECUTOR, run_single_scan)
             if result_tuple is None:
                 print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
-                return None
+                continue
             result, setup_str = result_tuple
             if isinstance(result, str):
                 print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
-                return None
+                continue
             confidence = result.get('confidence', 0)
             print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
-            return (coin, confidence, setup_str, result)
+            scan_results.append((coin, confidence, setup_str, result))
         except Exception as e:
             print(f"{LOG_PREFIX} ❌ Error scanning {setup_str}: {e}")
-            return None
-
-    # Create and run all tasks concurrently
-    tasks = [run_single_scan(coin, tf, dir, setup) for coin, tf, dir, setup in scan_tasks]
-    scan_results = await asyncio.gather(*tasks, return_exceptions=True)
+            continue
 
     # Group results by coin
     coin_results = {}
     for result in scan_results:
-        if result is None or isinstance(result, Exception):
-            continue
         coin, confidence, setup_str, data = result
         if coin not in coin_results:
             coin_results[coin] = []
         coin_results[coin].append((confidence, setup_str, data))
 
-    print(f"{LOG_PREFIX} 📊 All scans completed. Processing {len(coins_final)} coins in parallel for chart generation...")
+    print(f"{LOG_PREFIX} 📊 All scans completed. Processing {len(coins_final)} coins sequentially for chart generation...")
 
-    # Process all coins in parallel - prepare data for each coin
-    async def process_coin_result(coin):
-        """Process a single coin's results and return prepared response data"""
+    # Process all coins sequentially to save memory
+    processed_results = []
+    for coin in coins_final:
+        # Process a single coin's results and return prepared response data
         if coin not in coin_results or not coin_results[coin]:
-            return (coin, None, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
+            processed_results.append((coin, None, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada."))
+            continue
 
         results = coin_results[coin]
 
@@ -940,18 +911,14 @@ async def scan_command(ctx, *, args: str):
 
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
 
-        # Generate chart for best result (in parallel)
+        # Generate chart for best result (sequentially)
         chart_buf = await bot.loop.run_in_executor(EXECUTOR, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
         embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id, "Scanned")
 
-        return (coin, (embed, view, chart_buf, symbol_norm), None)
-
-    # Run all coin processing in parallel
-    coin_process_tasks = [process_coin_result(coin) for coin in coins_final]
-    processed_results = await asyncio.gather(*coin_process_tasks, return_exceptions=True)
+        processed_results.append((coin, (embed, view, chart_buf, symbol_norm), None))
 
     print(f"{LOG_PREFIX} 📤 All processing complete. Sending results in order...")
 
@@ -1099,11 +1066,12 @@ async def scalp_command(ctx, *, args: str):
 
             scalp_tasks.append((coin, timeframe, direction, setup_str))
 
-    print(f"{LOG_PREFIX} 🚀 Starting parallel scalp for {len(scalp_tasks)} setups across {len(coins_final)} coins")
+    print(f"{LOG_PREFIX} 🚀 Starting sequential scalp for {len(scalp_tasks)} setups across {len(coins_final)} coins")
 
-    # Execute all scalps in parallel
-    async def run_single_scalp(coin, timeframe, direction, setup_str):
-        def run_scalp():
+    # Execute all scalps sequentially to save memory
+    scalp_results = []
+    for coin, timeframe, direction, setup_str in scalp_tasks:
+        def run_single_scalp():
             symbol_norm = normalize_symbol(coin, exchange)
             if not pair_exists(symbol_norm, exchange):
                 return None
@@ -1111,42 +1079,38 @@ async def scalp_command(ctx, *, args: str):
             return result, setup_str
 
         try:
-            result_tuple = await bot.loop.run_in_executor(EXECUTOR, run_scalp)
+            result_tuple = await bot.loop.run_in_executor(EXECUTOR, run_single_scalp)
             if result_tuple is None:
                 print(f"{LOG_PREFIX} ❌ Pair not available: {coin}")
-                return None
+                continue
             result, setup_str = result_tuple
             if isinstance(result, str):
                 print(f"{LOG_PREFIX} ❌ Signal generation returned error for {setup_str}: {result}")
-                return None
+                continue
             confidence = result.get('confidence', 0)
             print(f"{LOG_PREFIX} ✅ Setup {setup_str}: confidence {confidence}%")
-            return (coin, confidence, setup_str, result)
+            scalp_results.append((coin, confidence, setup_str, result))
         except Exception as e:
             print(f"{LOG_PREFIX} ❌ Error scalping {setup_str}: {e}")
-            return None
-
-    # Create and run all tasks concurrently
-    tasks = [run_single_scalp(coin, tf, dir, setup) for coin, tf, dir, setup in scalp_tasks]
-    scalp_results = await asyncio.gather(*tasks, return_exceptions=True)
+            continue
 
     # Group results by coin
     coin_results = {}
     for result in scalp_results:
-        if result is None or isinstance(result, Exception):
-            continue
         coin, confidence, setup_str, data = result
         if coin not in coin_results:
             coin_results[coin] = []
         coin_results[coin].append((confidence, setup_str, data))
 
-    print(f"{LOG_PREFIX} 📊 All scalps completed. Processing {len(coins_final)} coins in parallel for chart generation...")
+    print(f"{LOG_PREFIX} 📊 All scalps completed. Processing {len(coins_final)} coins sequentially for chart generation...")
 
-    # Process all coins in parallel - prepare data for each coin
-    async def process_coin_result(coin):
-        """Process a single coin's results and return prepared response data"""
+    # Process all coins sequentially to save memory
+    processed_results = []
+    for coin in coins_final:
+        # Process a single coin's results and return prepared response data
         if coin not in coin_results or not coin_results[coin]:
-            return (coin, None, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada.")
+            processed_results.append((coin, None, f"⚠️ Tidak ada hasil valid untuk {coin}. Pasangan mungkin tidak ada."))
+            continue
 
         results = coin_results[coin]
 
@@ -1159,18 +1123,14 @@ async def scalp_command(ctx, *, args: str):
 
         print(f"{LOG_PREFIX} 🏆 Best setup for {coin}: {best_setup} with {best_confidence}% confidence")
 
-        # Generate chart for best result (in parallel)
+        # Generate chart for best result (sequentially)
         chart_buf = await bot.loop.run_in_executor(EXECUTOR, generate_chart_from_data, best_data, normalize_symbol(coin, exchange), best_timeframe, exchange)
 
         # Create embed with all confidences listed
         symbol_norm = normalize_symbol(coin, exchange)
         embed, view = create_scan_embed_from_dict(best_data, symbol_norm, best_timeframe, results, exchange, ema_short, ema_long, None, ctx.author.id, "Scalped")
 
-        return (coin, (embed, view, chart_buf, symbol_norm), None)
-
-    # Run all coin processing in parallel
-    coin_process_tasks = [process_coin_result(coin) for coin in coins_final]
-    processed_results = await asyncio.gather(*coin_process_tasks, return_exceptions=True)
+        processed_results.append((coin, (embed, view, chart_buf, symbol_norm), None))
 
     print(f"{LOG_PREFIX} 📤 All processing complete. Sending results in order...")
 
