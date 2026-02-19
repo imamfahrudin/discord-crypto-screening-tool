@@ -17,6 +17,10 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     networks:
       - custom_bridge
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     healthcheck:
       test: ["CMD", "nslookup", "google.com", "1.1.1.1"]
       interval: 30s
@@ -36,18 +40,26 @@ networks:
   #   container_name: discord-crypto-screening-tool-2
   #   env_file: .env2
   #   volumes:
-  #     - ./bybit_pairs_cache.json:/app/bybit_pairs_cache.json
-  #     - ./binance_pairs_cache.json:/app/binance_pairs_cache.json
-  #     - ./bitget_pairs_cache.json:/app/bitget_pairs_cache.json
-  #     - ./gate_pairs_cache.json:/app/gate_pairs_cache.json
+  #     - ./cache:/app/cache
   #   restart: unless-stopped
-  #   dns:
-  #     - 127.0.0.1
+  #   privileged: true
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_MODULE
+  #   devices:
+  #     - /dev/net/tun:/dev/net/tun
+  #   sysctls:
+  #     - net.ipv6.conf.all.disable_ipv6=0
+  #     - net.ipv4.conf.all.src_valid_mark=1
   #   networks:
   #     - custom_bridge
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 128m
   #   healthcheck:
-  #     test: ["CMD", "nslookup", "google.com", "127.0.0.1"]
+  #     test: ["CMD", "nslookup", "google.com", "1.1.1.1"]
   #     interval: 30s
   #     timeout: 10s
   #     retries: 3
-  #     start_period: 10s
+  #     start_period: 30s
