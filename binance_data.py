@@ -149,6 +149,7 @@ def pair_exists(symbol: str) -> bool:
 # OHLC Data Cache
 _OHLC_CACHE = {}  # Key: (symbol, timeframe), Value: (df, timestamp)
 OHLC_CACHE_TTL = 300  # 5 minutes
+OHLC_CACHE_MAX_ENTRIES = 100  # Cap cache size to prevent unbounded memory growth
 
 def fetch_ohlc_cached(symbol: str, timeframe: str, limit: int = 500):
     """
@@ -163,6 +164,15 @@ def fetch_ohlc_cached(symbol: str, timeframe: str, limit: int = 500):
             return df
     
     df = fetch_ohlc(symbol, timeframe, limit)
+
+    # Drop expired entries so the cache never grows without bound
+    expired = [k for k, (_, ts) in _OHLC_CACHE.items() if now - ts >= OHLC_CACHE_TTL]
+    for k in expired:
+        del _OHLC_CACHE[k]
+    if len(_OHLC_CACHE) >= OHLC_CACHE_MAX_ENTRIES:
+        oldest_key = min(_OHLC_CACHE, key=lambda k: _OHLC_CACHE[k][1])
+        del _OHLC_CACHE[oldest_key]
+
     _OHLC_CACHE[key] = (df, now)
     return df
 
