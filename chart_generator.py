@@ -80,18 +80,18 @@ def generate_chart_with_setup(df: pd.DataFrame,
         else:
             df.index = pd.to_datetime(df.index)
     
-    # Limit to last 100 candles for better visibility
-    df_plot = df.tail(100).copy()
+    # Limit to last 50 candles for memory efficiency
+    df_plot = df.tail(50).copy()
     
     # Prepare additional plots (EMAs)
     add_plots = []
     
     if ema13 is not None:
-        ema13_plot = ema13.tail(100)
+        ema13_plot = ema13.tail(50)
         add_plots.append(mpf.make_addplot(ema13_plot, color='#00BFFF', width=2, label=f'EMA {ema_short}'))
     
     if ema21 is not None:
-        ema21_plot = ema21.tail(100)
+        ema21_plot = ema21.tail(50)
         add_plots.append(mpf.make_addplot(ema21_plot, color='#FF6B9D', width=2, label=f'EMA {ema_long}'))
     
     # Custom style with modern light theme
@@ -114,7 +114,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
         gridaxis='both'
     )
     
-    # Create figure with improved styling
+    # Create figure with improved styling (optimized for memory)
     plot_kwargs = {
         'type': 'candle',
         'style': s,
@@ -123,7 +123,7 @@ def generate_chart_with_setup(df: pd.DataFrame,
         'panel_ratios': (7, 1),  # Better ratio for dark theme
         'ylabel': 'Price',
         'ylabel_lower': 'Volume',
-        'figsize': (16, 9),  # Wider aspect ratio
+        'figsize': (12, 8),  # Reduced size for memory efficiency
         'returnfig': True,
         'warn_too_much_data': 200
     }
@@ -347,9 +347,9 @@ def generate_chart_with_setup(df: pd.DataFrame,
         warnings.simplefilter("ignore", UserWarning)
         plt.tight_layout()
     
-    # Save to BytesIO with higher quality
+    # Save to BytesIO with optimized quality for memory
     buf = BytesIO()
-    fig.savefig(buf, format='png', dpi=200, facecolor='#ffffff', edgecolor='none', bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=100, facecolor='#ffffff', edgecolor='none', bbox_inches='tight')
     buf.seek(0)
     
     # Close figure to free memory
